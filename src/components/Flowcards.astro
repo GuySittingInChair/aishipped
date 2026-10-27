@@ -1,0 +1,79 @@
+---
+const cards = [
+	{
+		action: 'Leave the smart TV on Wi-Fi',
+		feeds: 'Automatic content recognition samples what is on screen every few seconds, even from a cable box or console, and builds a viewing profile sold for ad targeting.',
+	},
+	{
+		action: 'Install a free app',
+		feeds: 'Bundled ad SDKs send your advertising ID, rough location and app usage to ad networks and data brokers. The app is free because you are the inventory.',
+	},
+	{
+		action: 'Scroll a feed',
+		feeds: 'Every pause is logged. The ranking model learns what keeps you scrolling, and anger, envy and fear keep people scrolling better than calm does.',
+	},
+	{
+		action: 'Open a web page',
+		feeds: 'Before it finishes loading, your profile is put up for auction to advertisers in about a tenth of a second. Dozens of companies receive it, winners and losers alike.',
+	},
+	{
+		action: 'Click "accept all cookies"',
+		feeds: 'Third-party pixels follow you from site to site so your browsing on one page shapes the ads on the next.',
+	},
+	{
+		action: 'Buy something online',
+		feeds: 'Purchase history joins your profile and gets matched with offline data from loyalty cards, so the same product chases you across apps for weeks.',
+	},
+];
+---
+
+<section id="surface">
+	<h2>what you do → what it feeds</h2>
+	<p class="lede">Tap a card to flip it.</p>
+	<div class="grid">
+		{cards.map((c) => (
+			<button class="card" type="button" aria-pressed="false">
+				<span class="label">you</span>
+				<span class="front">{c.action}</span>
+				<span class="back">{c.feeds}</span>
+			</button>
+		))}
+	</div>
+</section>
+
+<script>
+	for (const card of document.querySelectorAll<HTMLButtonElement>('#surface .card')) {
+		card.addEventListener('click', () => {
+			const on = card.getAttribute('aria-pressed') !== 'true';
+			card.setAttribute('aria-pressed', String(on));
+			card.querySelector('.label')!.textContent = on ? 'it' : 'you';
+		});
+	}
+</script>
+
+<style>
+	.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+	.card {
+		all: unset;
+		cursor: pointer;
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		padding: 14px;
+		min-height: 120px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		font: inherit;
+		color: var(--text);
+		transition: border-color 0.2s;
+	}
+	.card:hover, .card:focus-visible { border-color: var(--green); }
+	.label { color: var(--dim); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; }
+	.front { color: var(--green); font-size: 1.05rem; }
+	.back { display: none; font-size: 0.9rem; }
+	.card[aria-pressed='true'] { border-color: var(--red); }
+	.card[aria-pressed='true'] .label { color: var(--red); }
+	.card[aria-pressed='true'] .front { display: none; }
+	.card[aria-pressed='true'] .back { display: block; }
+</style>

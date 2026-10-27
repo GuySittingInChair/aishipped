@@ -1,0 +1,60 @@
+---
+const steps = [
+	{ who: 'you', what: 'scroll, watch, search, buy, walk around with a phone' },
+	{ who: 'devices + apps', what: 'TVs, phones and free apps log it, tied to an advertising ID' },
+	{ who: 'SDKs + pixels', what: 'tracking code inside apps and pages ships it out, often to dozens of companies' },
+	{ who: 'data brokers', what: 'merge it with purchase records, location and public records into a profile' },
+	{ who: 'ad exchange', what: 'auctions your attention in ~100 ms, every time a page or app loads' },
+	{ who: 'advertisers', what: 'pay for whatever reaction is most likely, and the feed learns to provoke it' },
+];
+---
+
+<section id="machine">
+	<h2>the machine</h2>
+	<p class="lede">
+		No person is sitting there watching you. Nobody needs to. It is a pipeline that runs on its
+		own, and every stage is paid by the next one.
+	</p>
+	<ol class="pipe">
+		{steps.map((s, i) => (
+			<li style={`--i:${i}`}>
+				<span class="who">{s.who}</span>
+				<span class="what">{s.what}</span>
+			</li>
+		))}
+	</ol>
+	<p class="note">
+		The loop closes at the bottom: whatever gets a reaction gets shown more, so the system drifts
+		toward things that wind people up. Nobody has to intend that for it to happen. The fix is the
+		same either way: stop feeding it, which is the next section.
+	</p>
+</section>
+
+<style>
+	.pipe { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+	.pipe li {
+		position: relative;
+		display: grid;
+		grid-template-columns: 150px 1fr;
+		gap: 16px;
+		padding: 12px 14px;
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-left: 3px solid color-mix(in srgb, var(--green), var(--red) calc(var(--i) * 20%));
+		border-radius: 4px;
+		margin-bottom: 22px;
+	}
+	.pipe li:not(:last-child)::after {
+		content: '↓';
+		position: absolute;
+		left: 20px;
+		bottom: -22px;
+		color: var(--dim);
+	}
+	.who { color: var(--green); }
+	.what { font-size: 0.92rem; }
+	.note { color: var(--dim); max-width: 64ch; }
+	@media (max-width: 560px) {
+		.pipe li { grid-template-columns: 1fr; gap: 2px; }
+	}
+</style>

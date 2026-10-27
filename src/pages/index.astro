@@ -1,34 +1,56 @@
 ---
+import Base from '../layouts/Base.astro';
+import Flowcards from '../components/Flowcards.astro';
+import Pipeline from '../components/Pipeline.astro';
+import Checklist from '../components/Checklist.astro';
+import Terminal from '../components/Terminal.astro';
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<title>aishipped.lol</title>
-		<style>
-			:root { color-scheme: dark; }
-			body {
-				margin: 0;
-				min-height: 100vh;
-				display: grid;
-				place-items: center;
-				background: #0b0d0c;
-				color: #7dffa8;
-				font: 16px/1.6 ui-monospace, "JetBrains Mono", Menlo, monospace;
-			}
-			main { padding: 16px; max-width: 640px; }
-			h1 { font-size: 1.6rem; margin: 0 0 0.5rem; }
-			p { color: #b9c7bd; margin: 0.25rem 0; }
-			.cursor { animation: blink 1s steps(1) infinite; }
-			@keyframes blink { 50% { opacity: 0; } }
-		</style>
-	</head>
-	<body>
-		<main>
-			<h1>$ aishipped.lol<span class="cursor">_</span></h1>
-			<p>under construction. something is shipping soon.</p>
-		</main>
-	</body>
-</html>
+<Base description="How the ad-funded internet turns your attention into money, and how to unplug from it for free.">
+	<main>
+		<header class="hero">
+			<p class="prompt">$ whoami</p>
+			<h1>aishipped.lol<span class="cursor">_</span></h1>
+			<p class="tag">the internet, minus the part that's farming you.</p>
+			<p class="sub">
+				Most of the "free" internet is paid for by your attention. Nobody asked you, nobody is
+				checking how it leaves you, and it is designed to be hard to quit. This page explains how
+				it works, and how to unplug from it without spending money.
+			</p>
+			<nav>
+				<a href="#surface">01 what it feeds</a>
+				<a href="#machine">02 the machine</a>
+				<a href="#unplug">03 unplug</a>
+				<a href="#terminal">04 terminal</a>
+			</nav>
+		</header>
+
+		<Flowcards />
+		<Pipeline />
+		<Checklist />
+		<Terminal />
+
+		<footer>
+			<p>no ads. no trackers. no cookies. the source is on <a href="https://github.com/GuySittingInChair/aishipped">github</a>.</p>
+		</footer>
+	</main>
+</Base>
+
+<style>
+	.hero { padding: 72px 0 48px; }
+	.prompt { color: var(--dim); margin: 0; }
+	h1 { font-size: clamp(2rem, 8vw, 3.4rem); margin: 4px 0 8px; word-break: break-word; }
+	.cursor { animation: blink 1s steps(1) infinite; }
+	@keyframes blink { 50% { opacity: 0; } }
+	.tag { color: var(--amber); font-size: 1.1rem; margin: 0 0 16px; }
+	.sub { max-width: 60ch; margin: 0 0 28px; }
+	nav { display: flex; flex-wrap: wrap; gap: 8px; }
+	nav a {
+		text-decoration: none;
+		border: 1px solid var(--line);
+		padding: 6px 10px;
+		border-radius: 4px;
+	}
+	nav a:hover { border-color: var(--green); }
+	footer { margin-top: 64px; color: var(--dim); font-size: 0.85rem; }
+</style>

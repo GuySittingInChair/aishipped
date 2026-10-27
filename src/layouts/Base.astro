@@ -1,0 +1,55 @@
+---
+const { title = 'aishipped.lol', description = '' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="description" content={description} />
+		<title>{title}</title>
+	</head>
+	<body>
+		<slot />
+	</body>
+</html>
+
+<style is:global>
+	:root {
+		color-scheme: dark;
+		--bg: #0b0d0c;
+		--panel: #111513;
+		--line: #1f2723;
+		--text: #c9d6cd;
+		--dim: #7c8a80;
+		--green: #7dffa8;
+		--amber: #ffcc66;
+		--red: #ff7a7a;
+		--mono: ui-monospace, 'JetBrains Mono', 'Fira Code', Menlo, monospace;
+	}
+	* { box-sizing: border-box; }
+	html { scroll-behavior: smooth; }
+	body {
+		margin: 0;
+		background: var(--bg);
+		color: var(--text);
+		font: 15px/1.65 var(--mono);
+	}
+	a { color: var(--green); }
+	main { max-width: 860px; margin: 0 auto; padding: 0 16px 80px; }
+	section { padding: 56px 0 8px; border-top: 1px solid var(--line); }
+	h1, h2, h3 { color: var(--green); font-weight: 600; line-height: 1.25; }
+	h2 { font-size: 1.3rem; margin: 0 0 4px; }
+	h2::before { content: '## '; color: var(--dim); }
+	.lede { color: var(--dim); margin: 0 0 24px; }
+	code { color: var(--amber); }
+	pre {
+		background: var(--panel);
+		border: 1px solid var(--line);
+		padding: 12px;
+		overflow-x: auto;
+		border-radius: 6px;
+	}
+</style>

@@ -1,0 +1,104 @@
+---
+const tiers = [
+	{
+		name: 'devices',
+		items: [
+			['tv-wifi', 'Take the smart TV off Wi-Fi, or at least turn off Viewing Information Services, Interest-Based Ads and Voice Recognition (Settings → General & Privacy → Terms & Privacy on Samsung).'],
+			['ad-id', 'Phone: delete your advertising ID (Android: Settings → Security and privacy → More privacy settings → Ads).'],
+			['perms', 'Phone: take location, microphone and camera away from every app that does not need them.'],
+			['samsung', 'Samsung phones: turn off Customization Service.'],
+		],
+	},
+	{
+		name: 'network',
+		items: [
+			['private-dns', 'Phone: set Private DNS to dns.adguard-dns.com to block trackers in every app.'],
+			['home-dns', 'Home: run AdGuard Home or Pi-hole on an always-on computer and point the router DNS at it. Blocks trackers for every device in the house.'],
+		],
+	},
+	{
+		name: 'browser',
+		items: [
+			['firefox', 'Use Firefox with the uBlock Origin extension.'],
+			['cookies', 'Reject cookies when asked, or let uBlock hide the banners.'],
+			['tor', 'Keep Tor Browser around for anything you want fully unlinked.'],
+		],
+	},
+	{
+		name: 'feeds',
+		items: [
+			['rss', 'Move the sources you actually like into an RSS reader. You pick every one; nothing is ranked.'],
+			['apps', 'Delete or log out of the apps whose feeds leave you worse off.'],
+			['fedi', 'If you want social media, try Mastodon or the wider fediverse: volunteer-run, no ads, no algorithm.'],
+		],
+	},
+	{
+		name: 'offline',
+		items: [
+			['kiwix', 'Install Kiwix for offline Wikipedia and books.'],
+			['library', 'Keep your own music and video library (Jellyfin plays it on any device).'],
+			['phone-off', 'Spend a day with the phone off, outside.'],
+		],
+	},
+	{
+		name: 'data they already have',
+		items: [
+			['google', 'Google: myaccount.google.com → Data & privacy → delete history, pause activity, turn off personalized ads.'],
+			['samsung-del', 'Samsung: request deletion at privacy.samsung.com.'],
+			['brokers', 'Data brokers (Spokeo, Whitepages, etc.): use each one\'s free opt-out form.'],
+		],
+	},
+];
+const total = tiers.reduce((n, t) => n + t.items.length, 0);
+---
+
+<section id="unplug">
+	<h2>unplug</h2>
+	<p class="lede">Everything here is free. Your progress is saved in this browser only.</p>
+	<p class="progress"><span><span id="done">0</span>/{total} done</span> <span class="bar"><span id="fill"></span></span></p>
+	{tiers.map((t) => (
+		<fieldset>
+			<legend>{t.name}</legend>
+			{t.items.map(([id, text]) => (
+				<label>
+					<input type="checkbox" data-id={id} />
+					<span>{text}</span>
+				</label>
+			))}
+		</fieldset>
+	))}
+</section>
+
+<script>
+	const KEY = 'aishipped.checklist';
+	const boxes = [...document.querySelectorAll<HTMLInputElement>('#unplug input[type=checkbox]')];
+	let saved: Record<string, boolean> = {};
+	try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch {}
+
+	function update() {
+		const done = boxes.filter((b) => b.checked).length;
+		document.getElementById('done')!.textContent = String(done);
+		document.getElementById('fill')!.style.width = `${(done / boxes.length) * 100}%`;
+	}
+
+	for (const box of boxes) {
+		box.checked = !!saved[box.dataset.id!];
+		box.addEventListener('change', () => {
+			saved[box.dataset.id!] = box.checked;
+			try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch {}
+			update();
+		});
+	}
+	update();
+</script>
+
+<style>
+	.progress { display: flex; align-items: center; gap: 12px; color: var(--green); }
+	.bar { flex: 1; max-width: 240px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+	#fill { display: block; height: 100%; width: 0; background: var(--green); transition: width 0.3s; }
+	fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 16px; padding: 8px 14px 12px; }
+	legend { color: var(--amber); padding: 0 6px; }
+	label { display: flex; gap: 10px; padding: 6px 0; cursor: pointer; font-size: 0.92rem; }
+	input { accent-color: var(--green); margin-top: 5px; flex: none; width: 16px; height: 16px; }
+	label:has(input:checked) span { color: var(--dim); text-decoration: line-through; }
+</style>
