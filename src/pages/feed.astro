@@ -615,7 +615,10 @@ const sources = [
 				// don't stall the feed on a slow source: try another one that's ready
 				const ready = Object.keys(SOURCES).some((id) => id !== c.id && weights()[id] > 0 && SOURCES[id].queue.length);
 				if (ready) { tried.add(c.id); continue; }
-				await refill(c.id);
+				// nothing ready yet: wait for whichever source answers first, not just this one
+				const pending = Object.values(SOURCES).map((x) => x.pending).filter(Boolean);
+				await (pending.length ? Promise.race(pending) : refill(c.id));
+				if (!s.queue.length) continue;
 			}
 			const card = s.queue.shift();
 			if (card && !seen.has(card.id)) return [card, c.why];
