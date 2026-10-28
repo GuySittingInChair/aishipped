@@ -274,7 +274,7 @@ const sources = [
 			body: p.lines.join('\n').replace(/\n{3,}/g, '\n\n'),
 			verse: true,
 			link: `https://www.gutenberg.org/ebooks/search/?query=${encodeURIComponent(p.author)}`,
-			linkText: 'their books on gutenberg',
+			linkText: 'gutenberg',
 			more: async () => {
 				const d = await getJSON(`https://poetrydb.org/author/${encodeURIComponent(p.author)}/title,author,lines,linecount`);
 				return shuffle(Array.isArray(d) ? d.filter(short).filter((x: any) => x.title !== p.title) : []).slice(0, 2).map(poemCard);
@@ -617,7 +617,8 @@ const sources = [
 		font-size: 0.85rem;
 	}
 	.home { text-decoration: none; }
-	.stat { color: var(--dim); }
+	.stat { color: var(--dim); white-space: nowrap; }
+	@media (max-width: 480px) { .home { display: none; } }
 	.spacer { flex: 1; }
 	button {
 		font: inherit; color: var(--text); background: var(--panel);
