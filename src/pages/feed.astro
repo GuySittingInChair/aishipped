@@ -252,7 +252,6 @@ const sources = [
 		return shuffle(d.results.map(natureCard).filter(Boolean));
 	}
 
-	const WIKI = 'https://en.wikipedia.org/w/api.php';
 	// sister wikis share the same API; travel cards come from Wikivoyage
 	const VOYAGE = 'https://en.wikivoyage.org';
 	function wikiCard(p: any, src: string, host = 'https://en.wikipedia.org'): Card {
