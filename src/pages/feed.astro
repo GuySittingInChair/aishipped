@@ -33,6 +33,7 @@ const sources = [
 	['design', 'design', 'textiles, posters, ceramics, jewellery and dress from the V&A in London', 2],
 	['curious', 'curiosities', 'old medical, botanical and scientific images from the Wellcome Collection', 2],
 	['europe', 'europe’s museums', 'open-licensed images from thousands of European museums, libraries and archives via Europeana', 2],
+	['travel', 'travel', 'a random place in the world, from the Wikivoyage travel guide', 2],
 	['amour', 'amour', 'off by default: love poems and the nude in art, from Cleveland museum and PoetryDB', 0],
 	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
 ] as const;
@@ -252,29 +253,36 @@ const sources = [
 	}
 
 	const WIKI = 'https://en.wikipedia.org/w/api.php';
-	function wikiCard(p: any, src: string): Card {
+	// sister wikis share the same API; travel cards come from Wikivoyage
+	const VOYAGE = 'https://en.wikivoyage.org';
+	function wikiCard(p: any, src: string, host = 'https://en.wikipedia.org'): Card {
+		const site = host === VOYAGE ? 'wikivoyage' : 'wikipedia';
 		return {
-			id: `wiki:${p.pageid ?? p.title}`,
+			id: `${site}:${p.pageid ?? p.title}`,
 			src,
 			title: p.title,
 			sub: p.description,
 			body: p.extract,
 			img: p.thumbnail?.source,
 			imgAlt: p.title,
-			link: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replace(/ /g, '_'))}`,
-			linkText: 'wikipedia',
-			credit: 'Wikipedia · CC BY-SA',
-			more: () => wikiQuery({ generator: 'search', gsrsearch: `morelike:${p.title}`, gsrlimit: 4 }, src).then((c) => c.slice(0, 3)),
+			link: `${host}/wiki/${encodeURIComponent(p.title.replace(/ /g, '_'))}`,
+			linkText: site,
+			credit: `${site[0].toUpperCase() + site.slice(1)} · CC BY-SA`,
+			more: () => wikiQuery({ generator: 'search', gsrsearch: `morelike:${p.title}`, gsrlimit: 4 }, src, host).then((c) => c.slice(0, 3)),
 		};
 	}
-	async function wikiQuery(params: Record<string, string | number>, src: string) {
-		const d = await getJSON(`${WIKI}?${qs({
+	async function wikiQuery(params: Record<string, string | number>, src: string, host = 'https://en.wikipedia.org') {
+		const d = await getJSON(`${host}/w/api.php?${qs({
 			action: 'query', format: 'json', origin: '*', prop: 'extracts|pageimages|description',
 			exintro: 1, explaintext: 1, exlimit: 20, pithumbsize: small ? 500 : 800, ...params,
 		})}`);
 		return Object.values(d.query?.pages ?? {})
 			.sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
-			.map((p: any) => wikiCard(p, src));
+			.map((p: any) => wikiCard(p, src, host));
+	}
+	async function travel() {
+		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 30 }, 'travel', VOYAGE);
+		return cards.filter((c) => c.img && (c.body?.length ?? 0) > 150);
 	}
 	async function random() {
 		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random');
@@ -708,7 +716,7 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, films, today, nasa, photos, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
