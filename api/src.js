@@ -114,10 +114,24 @@ export async function GET(request) {
 	}
 }
 
+// Hacker News needs one request per story; do them all here and hand back one cached batch
+async function hnBatch(p) {
+	const ids = await (await fetch('https://hacker-news.firebaseio.com/v0/beststories.json', { signal: AbortSignal.timeout(10000) })).json();
+	const slice = ids.slice(p * 25, p * 25 + 25);
+	const items = await Promise.all(slice.map((id) => fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then((r) => r.json()).catch(() => null)));
+	return items.filter(Boolean).map((i) => ({ id: i.id, title: i.title, url: i.url, score: i.score, descendants: i.descendants, text: i.text, dead: i.dead, deleted: i.deleted }));
+}
+
 async function relay(request) {
 	const q = new URL(request.url).searchParams;
-	const src = SOURCES[q.get('s')];
 	const p = Number(q.get('p'));
+	if (q.get('s') === 'hn' && Number.isInteger(p) && p >= 0 && p < 8) {
+		return new Response(JSON.stringify(await hnBatch(p)), { headers: {
+			'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=300',
+			'Vercel-CDN-Cache-Control': 'max-age=1800, stale-while-revalidate=86400',
+		} });
+	}
+	const src = SOURCES[q.get('s')];
 	if (!src || !Number.isInteger(p) || p < 0 || p >= src.pages) return new Response('bad request', { status: 400 });
 	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped-feed/1.0 (https://aishipped.lol; build snapshot)' }, signal: AbortSignal.timeout(25000) });
 	if (!r.ok) return new Response('upstream error', { status: 502, headers: { 'Cache-Control': 'no-store' } });

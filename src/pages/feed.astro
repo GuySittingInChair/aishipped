@@ -653,8 +653,11 @@ const sources = [
 
 	let hnIds: number[] = [];
 	async function hn() {
-		if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
-		const items = await Promise.all(hnIds.splice(0, 6).map((id) => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
+		// one cached request for 25 stories; straight to HN (one request per story) only if that fails
+		const items: any[] = await getJSON(`/api/src?s=hn&p=${rand(8)}`, 5000).catch(async () => {
+			if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
+			return Promise.all(hnIds.splice(0, 6).map((id) => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
+		});
 		return items.filter((i) => i && !i.dead && !i.deleted).map((i): Card => {
 			const thread = `https://news.ycombinator.com/item?id=${i.id}`;
 			let host = '';
