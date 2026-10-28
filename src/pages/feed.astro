@@ -6,6 +6,14 @@ import { readFileSync } from 'node:fs';
 let snaps = '{}';
 try { snaps = readFileSync('public/data/manifest.json', 'utf8'); } catch {}
 
+// one batch per source baked into the HTML, so the first screen needs no requests at all
+const start: Record<string, unknown> = {};
+for (const [src, n] of Object.entries(JSON.parse(snaps) as Record<string, number>)) {
+	if (!n || !['nature', 'poems', 'featured', 'history'].includes(src)) continue;
+	try { start[src] = JSON.parse(readFileSync(`public/data/${src}-${Math.floor(Math.random() * n)}.json`, 'utf8')); } catch {}
+}
+const startJSON = JSON.stringify(start).replace(/</g, '\\u003c');
+
 const sources = [
 	['art', 'art', 'public-domain paintings, prints and objects from the Art Institute of Chicago', 3],
 	['nature', 'nature', 'the most-loved wildlife photos on iNaturalist, identified by people who know', 3],
@@ -47,6 +55,7 @@ const sources = [
 	<link rel="preconnect" href="https://mastodon.social" crossorigin />
 	<link rel="preconnect" href="https://earthquake.usgs.gov" crossorigin />
 	<script type="application/json" id="snaps" set:html={snaps} />
+	<script type="application/json" id="start" set:html={startJSON} />
 	<div class="bar" id="bar">
 		<a href="/" class="home">aishipped.lol</a>
 		<span class="stat"><span id="clock">0 min</span> · <span id="count">0</span> cards</span>
@@ -146,7 +155,9 @@ const sources = [
 	// slow sources go through our CDN cache first, then straight to the source if that fails
 	// fastest first: a build-time snapshot on the CDN, then the cached relay, then the source itself
 	const snaps: Promise<Record<string, number>> = Promise.resolve(JSON.parse(document.getElementById('snaps')?.textContent || '{}'));
+	const start: Record<string, any> = JSON.parse(document.getElementById('start')?.textContent || '{}');
 	const snapshot = async (s: string) => {
+		if (start[s]) { const d = start[s]; delete start[s]; return d; }
 		const n = (await snaps)[s];
 		if (!n) throw new Error('no snapshot');
 		return getJSON(`/data/${s}-${rand(n)}.json`, 4000);
