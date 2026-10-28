@@ -415,8 +415,8 @@ const sources = [
 		}).filter(Boolean) as Card[]);
 	}
 
-	async function history() {
-		const d = await relay('history', 2000, `https://www.loc.gov/photos/?${qs({ fo: 'json', c: 25, sp: 1 + rand(2000), fa: 'online-format:image' })}`);
+	async function history(given?: any): Promise<Card[]> {
+		const d = given ?? await relay('history', 2000, `https://www.loc.gov/photos/?${qs({ fo: 'json', c: 25, sp: 1 + rand(2000), fa: 'online-format:image' })}`);
 		return shuffle(d.results.map((r: any): Card | null => {
 			const img = [...(r.image_url ?? [])].reverse().find((u: string) => /\.(jpg|gif|png)/.test(u));
 			if (!img || !r.title) return null;
@@ -431,6 +431,13 @@ const sources = [
 				link: r.url,
 				linkText: 'loc.gov',
 				credit: 'Library of Congress',
+				more: async () => {
+					const words = r.title.replace(/[^\w\s]/g, ' ').split(/\s+/).filter((w: string) => w.length > 3 && !/untitled/i.test(w)).slice(0, 3).join(' ');
+					if (!words) return [];
+					const d = await getJSON(`https://www.loc.gov/photos/?${qs({ fo: 'json', c: 20, q: words, fa: 'online-format:image' })}`);
+					const all = await history(d);
+					return all.filter((c) => c.id !== `loc:${r.id}`).slice(0, 3);
+				},
 			};
 		}).filter(Boolean));
 	}
@@ -501,8 +508,13 @@ const sources = [
 	async function films() {
 		const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({
 			q: 'collection:prelinger AND mediatype:movies', 'fl[]': 'identifier', rows: 20, page: 1 + rand(80), output: 'json', 'sort[]': 'downloads desc',
-		})}&fl[]=title&fl[]=year&fl[]=description`);
-		return shuffle(d.response.docs.filter((f: any) => f.title && !/^\d+$/.test(f.title)).map((f: any): Card => ({
+		})}&fl[]=title&fl[]=year&fl[]=description&fl[]=subject`);
+		return shuffle(d.response.docs.map(filmCard).filter(Boolean));
+	}
+	function filmCard(f: any): Card | null {
+		if (!f.title || /^\d+$/.test(f.title)) return null;
+		const subject = [f.subject].flat().filter(Boolean)[0] as string | undefined;
+		return {
 			id: `film:${f.identifier}`,
 			src: 'films',
 			title: f.title,
@@ -514,7 +526,13 @@ const sources = [
 			link: `https://archive.org/details/${f.identifier}`,
 			linkText: 'archive.org',
 			credit: 'Internet Archive · public domain',
-		})));
+			more: subject ? async () => {
+				const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({
+					q: `collection:prelinger AND mediatype:movies AND subject:"${subject.replace(/"/g, '')}"`, 'fl[]': 'identifier', rows: 20, output: 'json', 'sort[]': 'downloads desc',
+				})}&fl[]=title&fl[]=year&fl[]=description&fl[]=subject`);
+				return shuffle(d.response.docs.filter((x: any) => x.identifier !== f.identifier).map(filmCard).filter(Boolean)).slice(0, 3);
+			} : undefined,
+		};
 	}
 
 	async function today() {
