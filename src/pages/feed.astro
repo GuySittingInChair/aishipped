@@ -131,6 +131,9 @@ const sources = [
 		if (!r.ok) throw new Error(`${r.status} ${url}`);
 		return r.json();
 	};
+	// slow sources go through our CDN cache first, then straight to the source if that fails
+	const relay = (s: string, pages: number, direct: string) =>
+		getJSON(`/api/src?s=${s}&p=${rand(pages)}`).catch(() => getJSON(direct));
 	const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
 	const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])).toString();
 
@@ -208,7 +211,7 @@ const sources = [
 		};
 	}
 	async function nature() {
-		const d = await getJSON(`${INAT}?${qs({ quality_grade: 'research', photos: 'true', order_by: 'votes', per_page: 50, page: 1 + rand(190) })}`);
+		const d = await relay('nature', 190, `${INAT}?${qs({ quality_grade: 'research', photos: 'true', order_by: 'votes', per_page: 50, page: 1 + rand(190) })}`);
 		return shuffle(d.results.map(natureCard).filter(Boolean));
 	}
 
@@ -300,7 +303,7 @@ const sources = [
 	}
 
 	async function space() {
-		const d = await getJSON('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=10&thumbs=true');
+		const d = await relay('space', 30, 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=10&thumbs=true');
 		return d
 			.filter((a: any) => a.media_type === 'image' && a.url && !/nasa-logo/.test(a.url))
 			.map((a: any): Card => ({
