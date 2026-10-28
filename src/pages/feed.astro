@@ -126,14 +126,14 @@ const sources = [
 	const rand = (n: number) => Math.floor(Math.random() * n);
 	const pick = <T,>(a: T[]) => a[rand(a.length)];
 	const shuffle = <T,>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-	const getJSON = async (url: string) => {
-		const r = await fetch(url);
+	const getJSON = async (url: string, ms = 20000) => {
+		const r = await fetch(url, { signal: AbortSignal.timeout(ms) });
 		if (!r.ok) throw new Error(`${r.status} ${url}`);
 		return r.json();
 	};
 	// slow sources go through our CDN cache first, then straight to the source if that fails
 	const relay = (s: string, pages: number, direct: string) =>
-		getJSON(`/api/src?s=${s}&p=${rand(pages)}`).catch(() => getJSON(direct));
+		getJSON(`/api/src?s=${s}&p=${rand(pages)}`, 5000).catch(() => getJSON(direct));
 	const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
 	const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])).toString();
 

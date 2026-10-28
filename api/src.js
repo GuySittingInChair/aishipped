@@ -22,11 +22,17 @@ const SOURCES = {
 };
 
 export async function GET(request) {
+	try { return await relay(request); } catch {
+		return new Response('upstream timeout', { status: 504, headers: { 'Cache-Control': 'no-store' } });
+	}
+}
+
+async function relay(request) {
 	const q = new URL(request.url).searchParams;
 	const src = SOURCES[q.get('s')];
 	const p = Number(q.get('p'));
 	if (!src || !Number.isInteger(p) || p < 0 || p >= src.pages) return new Response('bad request', { status: 400 });
-	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped.lol feed' } });
+	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped.lol feed' }, signal: AbortSignal.timeout(25000) });
 	if (!r.ok) return new Response('upstream error', { status: 502, headers: { 'Cache-Control': 'no-store' } });
 	const body = src.trim ? JSON.stringify(src.trim(await r.json())) : await r.text();
 	return new Response(body, {
