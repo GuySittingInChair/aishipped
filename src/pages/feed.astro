@@ -90,6 +90,12 @@ const sources = [
 
 	<aside id="tune" class="panel" hidden>
 		<h2>tune</h2>
+		<label class="rawtoggle">
+			<input type="checkbox" id="raw" checked />
+			<span><b>uncurated</b>: every card is a random pick from a source's <em>whole</em> collection, not from anyone's selection
+			(no featured lists, no most-voted, no trending, no museum highlights, no topic lists chosen by me). Sources that are
+			nothing but someone's picks switch off. Expect it to be stranger and plainer: that is what an unedited archive looks like.</span>
+		</label>
 		<p class="lede">How often each kind of card shows up. 0 turns it off.</p>
 		{sources.map(([id, name, desc, w]) => (
 			<label class="slider">
@@ -168,7 +174,7 @@ const sources = [
 	const snaps: Promise<Record<string, number>> = Promise.resolve(JSON.parse(document.getElementById('snaps')?.textContent || '{}'));
 	const start: Record<string, any> = JSON.parse(document.getElementById('start')?.textContent || '{}');
 	const snapshot = async (s: string) => {
-		if (start[s]) { const d = start[s]; delete start[s]; return d; }
+		if (start[s] && !rawBox.checked) { const d = start[s]; delete start[s]; return d; }
 		const n = (await snaps)[s];
 		if (!n) throw new Error('no snapshot');
 		return getJSON(`/data/${s}-${rand(n)}.json`, 4000);
@@ -183,7 +189,7 @@ const sources = [
 	// ---- never show -----------------------------------------------------------
 
 	const B_KEY = 'aishipped.feed.block';
-	const DEFAULT_BLOCK = `# big tech\nbig tech\ngoogle\nalphabet inc\nyoutube\napple inc\niphone\nipad\nmacbook\nmicrosoft\namazon.com\namazon web services\nalexa\njeff bezos\nbezos\nmeta platforms\nfacebook\ninstagram\nwhatsapp\nzuckerberg\ntwitter\ntweet\nx.com\ntesla\nopenai\nchatgpt\ngpt\nanthropic\ndeepmind\ngemini\nnvidia\nnetflix\nuber\nairbnb\ntiktok\nbytedance\noracle\nibm\nintel\npalantir\nsamsung\nhuawei\nalibaba\ntencent\nsilicon valley\nstartup\ny combinator\nsam altman\naltman\npeter thiel\nbill gates\nandreessen\nartificial intelligence\nmachine learning\nai\nllm\nchatbot\nalgorithm\ncrypto\ncryptocurrency\nbitcoin\nblockchain\nnft\nsmartphone\napp store\n# musk\nmusk\nelon\nmusk ox\nmuskox\novibos\nmuskrat\nspacex\nstarlink\nneuralink\nxai\nstarship\n# yews\nyew\nyews\ntaxus\n# parasites\nparasite\nparasitic\nparasitism\nparasitoid\ntapeworm\nhookworm\nroundworm\nfluke\nleech\ntick\nlouse\nlice\nflea\nmite\nmistletoe\ndodder\nbotfly\nlamprey\ncuckoo\nrafflesia\ncordyceps\ntoxoplasma\nmalaria\nplasmodium\nheartworm\n# walrus\nwalrus\nodobenus\n# red hair\nred hair\nred-haired\nredhead\nred-headed\nredheaded\nginger hair\nginger-haired\nauburn hair\ntitian hair\nstrawberry blonde\n# california\ncalifornia\ncalifornian\nlos angeles\nl.a.\nhollywood\nsan francisco\nbay area\nsan diego\nsan jose\nsacramento\noakland\nberkeley\nmalibu\nbeverly hills\ncupertino\nmountain view\nmenlo park\npalo alto\n# chairs\nchair\narmchair\nrocking chair\nhighchair\nstool\nthrone\n# religion\nreligion\nreligious\ngod\ngoddess\ndeity\ndeities\ndivine\nsacred\nholy\nchurch\ncathedral\nchapel\nabbey\nmonastery\nconvent\ntemple\nshrine\nmosque\nsynagogue\nbible\nbiblical\ngospel\nscripture\nchrist\nchristian\nchristianity\njesus\nmadonna\nvirgin mary\nmary magdalene\nsaint\napostle\nprophet\npope\npapal\nbishop\narchbishop\npriest\nmonk\nnun\ncardinal\nvicar\nclergy\nislam\nislamic\nmuslim\nquran\nkoran\nhindu\nhinduism\nbuddha\nbuddhist\nbuddhism\njewish\njudaism\ntorah\nrabbi\nsikh\nshinto\ntaoist\nprayer\npray\nworship\nangel\ndemon\ndevil\nsatan\nheaven\nhell\ncrucifix\ncrucifixion\nbaptism\nresurrection\nnativity\nannunciation\neaster\nchristmas\nramadan\ndiwali\nhanukkah\nmyth\nmythology\nmythological\nvenus\ncupid\neros\nzeus\napollo\njupiter\njuno\nathena\nodin\nthor\npagan\nritual\nidol\nwitch\nwitchcraft\noccult\nspiritual\nsoul\nafterlife\nsermon\nhymn\npsalm\nmissionary\npilgrim\npilgrimage\nreliquary\naltarpiece\naltar\nicon\ntheology\n# artificial intelligence\nartificial intelligence\na.i.\nagi\nneural network\ndeep learning\nlarge language model\ngenerative\ngenai\nrobot\nrobotics\nautomation\ncopilot\nmidjourney\nstable diffusion\ndall-e\nsora\nclaude\nllama\nmistral\nhugging face\nsuperintelligence\nsingularity\n# trump\ntrump\ntrumps\ndonald\nmaga\nmar-a-lago\nmelania\nivanka\njared kushner\nmike pence\njd vance\nvance\n# stars\nstar\nstarry\nstellar\nstarlight\nstar stuff\nnebula\ngalaxy\ngalaxies\nsupernova\nconstellation\npulsar\nquasar\nmilky way\nastronomy\nastronomer\nastronomical\nastrophysics\ncosmos\nzodiac\nastrology\n# russia\nrussia\nrussian\nmoscow\nsoviet\nussr\nkremlin\nputin\nsiberia\nst petersburg\nsaint petersburg\nleningrad\ntsar\nczar\nromanov\nbolshevik`;
+	const DEFAULT_BLOCK = `# big tech\nbig tech\ngoogle\nalphabet inc\nyoutube\napple inc\niphone\nipad\nmacbook\nmicrosoft\namazon.com\namazon web services\nalexa\njeff bezos\nbezos\nmeta platforms\nfacebook\ninstagram\nwhatsapp\nzuckerberg\ntwitter\ntweet\nx.com\ntesla\nopenai\nchatgpt\ngpt\nanthropic\ndeepmind\ngemini\nnvidia\nnetflix\nuber\nairbnb\ntiktok\nbytedance\noracle\nibm\nintel\npalantir\nsamsung\nhuawei\nalibaba\ntencent\nsilicon valley\nstartup\ny combinator\nsam altman\naltman\npeter thiel\nbill gates\nandreessen\nartificial intelligence\nmachine learning\nai\nllm\nchatbot\nalgorithm\ncrypto\ncryptocurrency\nbitcoin\nblockchain\nnft\nsmartphone\napp store\n# musk\nmusk\nelon\nmusk ox\nmuskox\novibos\nmuskrat\nspacex\nstarlink\nneuralink\nxai\nstarship\n# yews\nyew\nyews\ntaxus\n# parasites\nparasite\nparasitic\nparasitism\nparasitoid\ntapeworm\nhookworm\nroundworm\nfluke\nleech\ntick\nlouse\nlice\nflea\nmite\nmistletoe\ndodder\nbotfly\nlamprey\ncuckoo\nrafflesia\ncordyceps\ntoxoplasma\nmalaria\nplasmodium\nheartworm\n# walrus\nwalrus\nodobenus\n# red hair\nred hair\nred-haired\nredhead\nred-headed\nredheaded\nginger hair\nginger-haired\nauburn hair\ntitian hair\nstrawberry blonde\n# california\ncalifornia\ncalifornian\nlos angeles\nl.a.\nhollywood\nsan francisco\nbay area\nsan diego\nsan jose\nsacramento\noakland\nberkeley\nmalibu\nbeverly hills\ncupertino\nmountain view\nmenlo park\npalo alto\n# chairs\nchair\narmchair\nrocking chair\nhighchair\nstool\nthrone\n# religion\nreligion\nreligious\ngod\ngoddess\ndeity\ndeities\ndivine\nsacred\nholy\nchurch\ncathedral\nchapel\nabbey\nmonastery\nconvent\ntemple\nshrine\nmosque\nsynagogue\nbible\nbiblical\ngospel\nscripture\nchrist\nchristian\nchristianity\njesus\nmadonna\nvirgin mary\nmary magdalene\nsaint\napostle\nprophet\npope\npapal\nbishop\narchbishop\npriest\nmonk\nnun\ncardinal\nvicar\nclergy\nislam\nislamic\nmuslim\nquran\nkoran\nhindu\nhinduism\nbuddha\nbuddhist\nbuddhism\njewish\njudaism\ntorah\nrabbi\nsikh\nshinto\ntaoist\nprayer\npray\nworship\nangel\ndemon\ndevil\nsatan\nheaven\nhell\ncrucifix\ncrucifixion\nbaptism\nresurrection\nnativity\nannunciation\neaster\nchristmas\nramadan\ndiwali\nhanukkah\nmyth\nmythology\nmythological\nvenus\ncupid\neros\nzeus\napollo\njupiter\njuno\nathena\nodin\nthor\npagan\nritual\nidol\nwitch\nwitchcraft\noccult\nspiritual\nsoul\nafterlife\nsermon\nhymn\npsalm\nmissionary\npilgrim\npilgrimage\nreliquary\naltarpiece\naltar\nicon\ntheology\n# artificial intelligence\nartificial intelligence\na.i.\nagi\nneural network\ndeep learning\nlarge language model\ngenerative\ngenai\nrobot\nrobotics\nautomation\ncopilot\nmidjourney\nstable diffusion\ndall-e\nsora\nclaude\nllama\nmistral\nhugging face\nsuperintelligence\nsingularity\n# trump\ntrump\ntrumps\ndonald\nmaga\nmar-a-lago\nmelania\nivanka\njared kushner\nmike pence\njd vance\nvance\n# t-shaped / tea / wonka / bees / ships\nt-shaped\nt-shirt\ntee\ntea\nteapot\nteacup\nteahouse\ntesla\nnikola tesla\ncharlie and the chocolate factory\nwilly wonka\nwonka\noompa-loompa\nroald dahl\nbee\nbumblebee\nhoneybee\nbeehive\nhive\napiary\napis\nbeekeeping\nbeekeeper\nhoney\nship\nshipwreck\nshipyard\nsteamship\nwarship\nbattleship\nsailing ship\nfrigate\ngalleon\nschooner\nbrig\nvessel\nliner\nhms\nuss\nboat\n# stars\nstar\nstarry\nstellar\nstarlight\nstar stuff\nnebula\ngalaxy\ngalaxies\nsupernova\nconstellation\npulsar\nquasar\nmilky way\nastronomy\nastronomer\nastronomical\nastrophysics\ncosmos\nzodiac\nastrology\n# russia\nrussia\nrussian\nmoscow\nsoviet\nussr\nkremlin\nputin\nsiberia\nst petersburg\nsaint petersburg\nleningrad\ntsar\nczar\nromanov\nbolshevik`;
 	let blockRe: RegExp | null = null;
 	function setBlock(list: string) {
 		const terms = list.split('\n').map((t) => t.trim().toLowerCase()).filter((t) => t && !t.startsWith('#'));
@@ -413,9 +419,12 @@ const sources = [
 			gcmtitle: 'Category:Featured_pictures_on_Wikimedia_Commons', gcmtype: 'file', gcmlimit: 20,
 			gcmstartsortkeyprefix: prefix, prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: small ? 640 : 960,
 		})}`);
+		return commonsCards(d);
+	}
+	function commonsCards(d: any): Card[] {
 		return shuffle(Object.values(d.query?.pages ?? {}).map((p: any): Card | null => {
 			const i = p.imageinfo?.[0];
-			if (!i?.thumburl) return null;
+			if (!i?.thumburl || (i.mime && !/^image\/(jpeg|png|webp|gif)/.test(i.mime))) return null;
 			const m = i.extmetadata ?? {};
 			const desc = m.ImageDescription ? text(m.ImageDescription.value) : '';
 			return {
@@ -615,7 +624,7 @@ const sources = [
 		return shuffle(d.data.map(cmaCard).filter(Boolean).map((c: Card) => ({ ...c, src: 'amour' })));
 	}
 
-	const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'tapestry', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
+	const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'wallpaper', 'kimono', 'tapestry', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'theatre', 'toy'];
 	function vamCard(r: any, q: string): Card | null {
 		const base = r._images?._iiif_image_base_url;
 		if (!base) return null;
@@ -671,7 +680,7 @@ const sources = [
 		return shuffle(d.results.map((r: any) => wellcomeCard(r, q)).filter(Boolean));
 	}
 
-	const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'calligraphy', 'mosaic', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
+	const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'calligraphy', 'mosaic', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
 	const first = (x: unknown) => (Array.isArray(x) ? x[0] : x) as string | undefined;
 	function europeCard(i: any): Card | null {
 		const preview = first(i.edmPreview);
@@ -768,6 +777,49 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
+	// ---- uncurated mode ----------------------------------------------------------
+	// Every curated list above (featured, most-voted, trending, museum highlights, my topic lists) is
+	// someone's selection. Uncurated mode replaces each with a uniform random draw from the whole
+	// collection, and switches off sources that only exist as somebody's picks.
+	const R_KEY = 'aishipped.feed.raw';
+	const rawBox = document.getElementById('raw') as HTMLInputElement;
+	rawBox.checked = load<boolean>(R_KEY, true);
+	const isRaw = () => rawBox.checked;
+	const RAW: Record<string, (() => Promise<Card[]>) | null> = {
+		featured: null, today: null, hn: null, fedi: null, space: null, amour: null,
+		art: async () => shuffle((await getJSON(`${CMA}?${qs({ has_image: 1, limit: 20, skip: rand(60000) })}`)).data.map(cmaCard).filter(Boolean)),
+		nature: async () => shuffle((await getJSON(`${INAT}?${qs({ photos: 'true', quality_grade: 'research', id_above: rand(300_000_000), order_by: 'id', order: 'asc', per_page: 30 })}`)).results.map(natureCard).filter(Boolean)),
+		photos: async () => commonsCards(await getJSON(`${COMMONS}?${qs({
+			action: 'query', format: 'json', origin: '*', generator: 'random', grnnamespace: 6, grnlimit: 20,
+			prop: 'imageinfo', iiprop: 'url|extmetadata|mime', iiurlwidth: small ? 640 : 960,
+		})}`)),
+		books: async () => {
+			const d = await getJSON(`https://openlibrary.org/search.json?${qs({ q: '*:*', sort: 'random', limit: 60, fields: 'key,title,author_name,first_publish_year,cover_i' })}`);
+			return d.docs.map((w: any) => bookCard({ key: w.key, title: w.title, cover_id: w.cover_i, authors: w.author_name?.map((name: string) => ({ name })), first_publish_year: w.first_publish_year }, 'everything'))
+				.filter(Boolean).map((c: Card) => ({ ...c, body: undefined, more: undefined }));
+		},
+		nasa: async () => {
+			const y = 1958 + rand(new Date().getFullYear() - 1958);
+			const d = await getJSON(`https://images-api.nasa.gov/search?${qs({ media_type: 'image', year_start: y, year_end: y, page: 1 + rand(3) })}`);
+			return shuffle(d.collection.items.map(nasaCard).filter(Boolean)).slice(0, 8);
+		},
+		design: async () => shuffle((await getJSON(`https://api.vam.ac.uk/v2/objects/search?${qs({ images_exist: 1, page_size: 20, page: 1 + rand(400) })}`)).records.map((r: any) => vamCard(r, '')).filter(Boolean)),
+		curious: async () => shuffle((await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ pageSize: 20, page: 1 + rand(500), 'locations.license': 'pdm,cc-0,cc-by' })}`)).results.map((r: any) => wellcomeCard(r, '')).filter(Boolean)),
+		europe: async () => shuffle(((await getJSON(`https://api.europeana.eu/record/v2/search.json?${qs({ query: '*', wskey: 'api2demo', rows: 24, start: 1 + rand(975), media: 'true', reusability: 'open', qf: 'TYPE:IMAGE' })}`)).items ?? []).map(europeCard).filter(Boolean)),
+		films: async () => {
+			const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({ q: 'collection:prelinger AND mediatype:movies', 'fl[]': 'identifier', rows: 20, page: 1 + rand(500), output: 'json' })}&fl[]=title&fl[]=year&fl[]=description&fl[]=subject`);
+			return shuffle(d.response.docs.map(filmCard).filter(Boolean));
+		},
+		poems: async () => (await getJSON('https://poetrydb.org/random/20/title,author,lines,linecount')).filter(short).map(poemCard),
+		random: async () => (await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random')).filter((c) => (c.body?.length ?? 0) > 250),
+	};
+	const enabled = (id: string) => !(isRaw() && RAW[id] === null);
+	rawBox.addEventListener('change', () => {
+		store(R_KEY, rawBox.checked);
+		for (const [id, x] of Object.entries(SOURCES)) { x.queue = []; x.fails = 0; if (enabled(id) && weights()[id] > 0) refill(id); }
+		document.getElementById('tune')!.classList.toggle('raw', rawBox.checked);
+	});
+
 	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
@@ -776,7 +828,8 @@ const sources = [
 
 	function refill(id: string) {
 		const s = SOURCES[id];
-		s.pending ??= s.fill()
+		const fill = isRaw() && RAW[id] ? RAW[id]! : s.fill;
+		s.pending ??= fill()
 			.then((cards) => { s.queue.push(...cards.filter((c) => !seen.has(c.id) && !blocked(c))); s.fails = 0; })
 			.catch(() => { s.fails++; })
 			.finally(() => { s.pending = undefined; });
@@ -823,11 +876,11 @@ const sources = [
 
 	function choose(exclude: Set<string>) {
 		const w = weights();
-		const live = Object.entries(w).filter(([id, v]) => v > 0 && !exclude.has(id) && SOURCES[id].fails < 3);
+		const live = Object.entries(w).filter(([id, v]) => v > 0 && enabled(id) && !exclude.has(id) && SOURCES[id].fails < 3);
 		const total = live.reduce((n, [, v]) => n + v, 0);
 		if (!total) return null;
 		let r = Math.random() * total;
-		for (const [id, v] of live) if ((r -= v) < 0) return { id, why: `drawn at random from ${SOURCES[id].name}: weight ${v} of ${total} (${Math.round((v / total) * 100)}%)` };
+		for (const [id, v] of live) if ((r -= v) < 0) return { id, why: `${isRaw() && RAW[id] ? 'uncurated: a random item from all of' : 'drawn at random from'} ${SOURCES[id].name}: weight ${v} of ${total} (${Math.round((v / total) * 100)}%)` };
 		return null;
 	}
 
@@ -1059,7 +1112,7 @@ const sources = [
 
 	// leftover cards from last visit make the first screen instant
 	const C_KEY = 'aishipped.feed.cache';
-	for (const c of shuffle(load<Card[]>(C_KEY, []))) if (!seen.has(c.id)) SOURCES[c.src]?.queue.push(c);
+	if (!isRaw()) for (const c of shuffle(load<Card[]>(C_KEY, []))) if (!seen.has(c.id)) SOURCES[c.src]?.queue.push(c);
 	store(C_KEY, []);
 	const saveLeftovers = () => {
 		const left = Object.values(SOURCES).flatMap((x) => x.queue.filter((c) => !c.draw).slice(0, 4))
@@ -1071,7 +1124,8 @@ const sources = [
 	document.addEventListener('visibilitychange', () => { if (document.hidden) saveLeftovers(); });
 
 	navigator.serviceWorker?.register('/sw.js').catch(() => {});
-	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0) refill(id);
+	document.getElementById('tune')!.classList.toggle('raw', isRaw());
+	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0 && enabled(id)) refill(id);
 	more(10);
 </script>
 
@@ -1168,6 +1222,11 @@ const sources = [
 	.slider output { color: var(--amber); }
 	.slider .desc { color: var(--dim); font-size: 0.72rem; }
 	.audit { font-size: 0.75rem; margin: 4px 0 8px; }
+	.rawtoggle { display: flex; gap: 10px; font-size: 0.78rem; margin: 0 0 14px; padding: 8px; border: 1px solid var(--amber); border-radius: 6px; cursor: pointer; }
+	.rawtoggle input { accent-color: var(--amber); margin-top: 3px; flex: none; }
+	.rawtoggle b { color: var(--amber); }
+	.panel.raw .slider:has(input[data-src="featured"]), .panel.raw .slider:has(input[data-src="today"]), .panel.raw .slider:has(input[data-src="hn"]),
+	.panel.raw .slider:has(input[data-src="fedi"]), .panel.raw .slider:has(input[data-src="space"]), .panel.raw .slider:has(input[data-src="amour"]) { opacity: 0.4; }
 	#blocklist { width: 100%; font: 0.78rem/1.4 var(--mono); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px; resize: vertical; }
 	.slider input { accent-color: var(--green); width: 100%; }
 	.row { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 0; }
