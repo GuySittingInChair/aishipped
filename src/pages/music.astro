@@ -1,0 +1,45 @@
+---
+import Base from '../layouts/Base.astro';
+import fs from 'node:fs';
+const tracks = fs.readdirSync('public/music').filter((f) => f.endsWith('.mp3')).sort();
+const name = (f: string) => f.replace(/^\d+ - /, '').replace(/\.mp3$/, '');
+---
+
+<Base title="Night Music" description="2 hours 45 minutes of public-domain Chopin and Beethoven to save to your phone.">
+	<main class="music">
+		<p class="prompt"><a href="/">aishipped.lol</a> / music</p>
+		<h1>night music</h1>
+		<p class="dim">39 tracks, about 2h45. Public-domain recordings by Musopen, via archive.org. Tap a song to save it to your phone.</p>
+		<button id="all">download all 39</button>
+		<p class="dim small" id="note">Your phone may ask once to allow multiple downloads: say yes.</p>
+		<ol>
+			{tracks.map((f) => (
+				<li><a href={`/music/${encodeURIComponent(f)}`} download={f}>{name(f)}</a></li>
+			))}
+		</ol>
+		<p class="dim small">Or stream all of it in VLC without saving: <a href="/night-music.m3u">night-music.m3u</a></p>
+	</main>
+</Base>
+
+<script>
+	document.getElementById('all')!.addEventListener('click', async () => {
+		for (const a of document.querySelectorAll<HTMLAnchorElement>('ol a')) {
+			a.click();
+			a.parentElement!.classList.add('done');
+			await new Promise((r) => setTimeout(r, 900));
+		}
+	});
+</script>
+
+<style>
+	.music { max-width: 720px; margin: 0 auto; padding: 32px 16px 80px; font-family: var(--mono); }
+	h1 { color: var(--green); margin: 8px 0; }
+	.dim { color: var(--dim); }
+	.small { font-size: 0.85rem; }
+	.prompt a { color: var(--dim); }
+	button { font: inherit; background: var(--panel); color: var(--amber); border: 1px solid var(--amber); padding: 12px 18px; margin: 12px 0 4px; cursor: pointer; }
+	ol { padding-left: 2.2em; }
+	li { padding: 9px 0; border-bottom: 1px solid var(--line); }
+	li a { color: var(--text); text-decoration: none; display: block; }
+	li.done a { color: var(--green); }
+</style>

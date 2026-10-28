@@ -11,7 +11,7 @@ self.addEventListener('fetch', (e) => {
 	const req = e.request;
 	if (req.method !== 'GET') return;
 	const url = new URL(req.url);
-	if (url.origin === location.origin && !url.pathname.startsWith('/api/')) {
+	if (url.origin === location.origin && !/^\/(api|music)\/|\.m3u$/.test(url.pathname)) {
 		e.respondWith(caches.open(PAGES).then(async (c) => {
 			const hit = await c.match(req);
 			const fresh = fetch(req).then((r) => { if (r.ok) c.put(req, r.clone()); return r; });
