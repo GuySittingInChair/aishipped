@@ -121,6 +121,8 @@ const sources = [
 	};
 	const store = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
+	// phones get smaller images: same look, a fraction of the bytes
+	const small = innerWidth * devicePixelRatio < 1100;
 	const rand = (n: number) => Math.floor(Math.random() * n);
 	const pick = <T,>(a: T[]) => a[rand(a.length)];
 	const shuffle = <T,>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -144,7 +146,7 @@ const sources = [
 			title: a.title,
 			sub: [a.artist_display?.split('\n')[0], a.date_display].filter(Boolean).join(' · '),
 			body: a.medium_display,
-			img: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg`,
+			img: `https://www.artic.edu/iiif/2/${a.image_id}/full/${small ? 600 : 843},/0/default.jpg`,
 			imgAlt: a.thumbnail?.alt_text || a.title,
 			placeholder: a.thumbnail?.lqip,
 			link: `https://www.artic.edu/artworks/${a.id}`,
@@ -193,7 +195,7 @@ const sources = [
 			src: 'nature',
 			title: t.preferred_common_name ? t.preferred_common_name[0].toUpperCase() + t.preferred_common_name.slice(1) : t.name,
 			sub: [t.preferred_common_name ? t.name : '', o.place_guess, o.observed_on].filter(Boolean).join(' · '),
-			img: photo.url.replace('/square.', '/large.'),
+			img: photo.url.replace('/square.', small ? '/medium.' : '/large.'),
 			imgAlt: t.preferred_common_name || t.name,
 			link: o.uri,
 			linkText: 'inaturalist.org',
@@ -229,7 +231,7 @@ const sources = [
 	async function wikiQuery(params: Record<string, string | number>, src: string) {
 		const d = await getJSON(`${WIKI}?${qs({
 			action: 'query', format: 'json', origin: '*', prop: 'extracts|pageimages|description',
-			exintro: 1, explaintext: 1, exlimit: 20, pithumbsize: 800, ...params,
+			exintro: 1, explaintext: 1, exlimit: 20, pithumbsize: small ? 500 : 800, ...params,
 		})}`);
 		return Object.values(d.query?.pages ?? {})
 			.sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
@@ -343,7 +345,7 @@ const sources = [
 		const d = await getJSON(`${COMMONS}?${qs({
 			action: 'query', format: 'json', origin: '*', generator: 'categorymembers',
 			gcmtitle: 'Category:Featured_pictures_on_Wikimedia_Commons', gcmtype: 'file', gcmlimit: 20,
-			gcmstartsortkeyprefix: prefix, prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: 1000,
+			gcmstartsortkeyprefix: prefix, prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: small ? 640 : 960,
 		})}`);
 		return shuffle(Object.values(d.query?.pages ?? {}).map((p: any): Card | null => {
 			const i = p.imageinfo?.[0];
@@ -394,7 +396,7 @@ const sources = [
 			title: w.title,
 			sub: [w.authors?.map((a: any) => a.name).join(', '), w.first_publish_year].filter(Boolean).join(' · '),
 			body: `shelved under ${subject.replace(/_/g, ' ')}${w.has_fulltext ? ' · free to borrow or read online' : ''}`,
-			img: `https://covers.openlibrary.org/b/id/${w.cover_id}-L.jpg`,
+			img: `https://covers.openlibrary.org/b/id/${w.cover_id}-${small ? 'M' : 'L'}.jpg`,
 			imgAlt: `cover of ${w.title}`,
 			link: `https://openlibrary.org${w.key}`,
 			linkText: 'openlibrary.org',
@@ -678,7 +680,8 @@ const sources = [
 			const fig = el('figure');
 			if (card.placeholder) fig.style.backgroundImage = `url("${card.placeholder}")`;
 			const img = el('img');
-			img.src = card.img; img.alt = card.imgAlt ?? ''; img.loading = shown < 3 ? 'eager' : 'lazy'; img.decoding = 'async';
+			img.src = card.img; img.alt = card.imgAlt ?? ''; img.loading = shown < 3 ? 'eager' : 'lazy';
+			if (shown < 2) img.fetchPriority = 'high'; img.decoding = 'async';
 			img.referrerPolicy = 'no-referrer';
 			img.onload = () => fig.classList.add('loaded');
 			img.onerror = () => fig.remove();
