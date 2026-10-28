@@ -914,8 +914,9 @@ const sources = [
 	addEventListener('pagehide', saveLeftovers);
 	document.addEventListener('visibilitychange', () => { if (document.hidden) saveLeftovers(); });
 
+	navigator.serviceWorker?.register('/sw.js').catch(() => {});
 	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0) refill(id);
-	more(6);
+	more(10);
 </script>
 
 <style>
