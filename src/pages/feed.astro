@@ -14,6 +14,9 @@ const sources = [
 	['books', 'books', 'classic and well-loved books from Open Library, by subject', 2],
 	['planet', 'the planet right now', 'earthquakes from the last day, live from the US Geological Survey', 1],
 	['fedi', 'fediverse', 'posts people are boosting on mastodon.social right now', 1],
+	['films', 'old films', 'public-domain films from the Prelinger Archives: ads, newsreels, how-to films, 1910s–1970s. tap to play', 2],
+	['today', 'today', "what the world is reading on Wikipedia right now, and today's news", 1],
+	['nasa', 'NASA archive', "pictures from NASA's image library: missions, telescopes, launches", 2],
 	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
 ] as const;
 ---
@@ -88,6 +91,7 @@ const sources = [
 		extra?: [string, string];
 		credit?: string;
 		draw?: (c: HTMLCanvasElement) => void;
+		embed?: string;
 		more?: () => Promise<Card[]>;
 	};
 
@@ -155,16 +159,10 @@ const sources = [
 			} : undefined,
 		};
 	}
-	async function art() {
-		if (Math.random() < 0.5) {
-			try {
-				const d = await getJSON(`${CMA}?${qs({ cc0: 1, has_image: 1, limit: 20, skip: rand(41000) })}`);
-				return shuffle(d.data.map(cmaCard).filter(Boolean));
-			} catch {}
-		}
-		const d = await getJSON(`${AIC}?query[term][is_public_domain]=true&limit=20&page=${1 + rand(490)}&fields=${AIC_FIELDS}`);
-		return shuffle(d.data.map(artCard).filter(Boolean));
-	}
+	const cma = async () => shuffle((await getJSON(`${CMA}?${qs({ cc0: 1, has_image: 1, limit: 20, skip: rand(41000) })}`)).data.map(cmaCard).filter(Boolean));
+	const aic = async () => shuffle((await getJSON(`${AIC}?query[term][is_public_domain]=true&limit=20&page=${1 + rand(490)}&fields=${AIC_FIELDS}`)).data.map(artCard).filter(Boolean));
+	// two museums; if one refuses, the other covers
+	const art = () => (Math.random() < 0.5 ? cma() : aic()).catch(() => cma()).catch(() => aic());
 
 	const INAT = 'https://api.inaturalist.org/v1/observations';
 	function natureCard(o: any): Card | null {
@@ -430,6 +428,70 @@ const sources = [
 		});
 	}
 
+	async function films() {
+		const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({
+			q: 'collection:prelinger AND mediatype:movies', 'fl[]': 'identifier', rows: 20, page: 1 + rand(80), output: 'json', 'sort[]': 'downloads desc',
+		})}&fl[]=title&fl[]=year&fl[]=description`);
+		return shuffle(d.response.docs.filter((f: any) => f.title && !/^\d+$/.test(f.title)).map((f: any): Card => ({
+			id: `film:${f.identifier}`,
+			src: 'films',
+			title: f.title,
+			sub: [f.year, 'Prelinger Archives'].filter(Boolean).join(' · '),
+			body: f.description ? text([f.description].flat().join(' ')) : undefined,
+			img: `https://archive.org/services/img/${f.identifier}`,
+			imgAlt: f.title,
+			embed: `https://archive.org/embed/${f.identifier}?autoplay=1`,
+			link: `https://archive.org/details/${f.identifier}`,
+			linkText: 'archive.org',
+			credit: 'Internet Archive · public domain',
+		})));
+	}
+
+	async function today() {
+		const now = new Date(Date.now() - 864e5);
+		const d = await getJSON(`https://en.wikipedia.org/api/rest_v1/feed/featured/${now.toISOString().slice(0, 10).replace(/-/g, '/')}`);
+		const read = (d.mostread?.articles ?? []).filter((a: any) => !/^(Main_Page|Special:|Wikipedia:)/.test(a.title)).slice(0, 25).map((a: any, i: number): Card => {
+			const c = wikiCard({ title: a.titles?.normalized ?? a.title, description: a.description, extract: a.extract, thumbnail: a.thumbnail, pageid: a.pageid }, 'today');
+			c.sub = `#${i + 1} most read yesterday · ${a.views.toLocaleString()} views` + (a.description ? ` · ${a.description}` : '');
+			return c;
+		});
+		const news = (d.news ?? []).map((n: any): Card => {
+			const p = n.links?.[0];
+			return {
+				id: `news:${n.story.slice(0, 50)}`,
+				src: 'today',
+				title: 'in the news',
+				body: text(n.story),
+				img: p?.thumbnail?.source,
+				imgAlt: p?.titles?.normalized,
+				link: p?.content_urls?.desktop?.page ?? 'https://en.wikipedia.org/wiki/Portal:Current_events',
+				linkText: 'wikipedia',
+			};
+		});
+		return shuffle([...read, ...news]);
+	}
+
+	const NASA_Q = ['nebula', 'galaxy', 'aurora', 'saturn', 'jupiter', 'mars surface', 'apollo', 'space shuttle launch', 'earth from orbit', 'hubble', 'webb', 'astronaut spacewalk', 'moon', 'comet', 'solar flare', 'hurricane from space', 'iss', 'rover', 'x-15', 'wind tunnel', 'supernova', 'star cluster'];
+	async function nasa() {
+		const q = pick(NASA_Q);
+		const d = await getJSON(`https://images-api.nasa.gov/search?${qs({ q, media_type: 'image', page: 1 + rand(3) })}`);
+		return shuffle(d.collection.items.filter((i: any) => i.links?.[0]?.href).map((i: any): Card => {
+			const m = i.data[0];
+			return {
+				id: `nasa:${m.nasa_id}`,
+				src: 'nasa',
+				title: m.title,
+				sub: [m.date_created?.slice(0, 10), m.center].filter(Boolean).join(' · '),
+				body: m.description ? text(m.description).slice(0, 1200) : undefined,
+				img: i.links[0].href.replace('~thumb', '~medium'),
+				imgAlt: m.title,
+				link: `https://images.nasa.gov/details/${encodeURIComponent(m.nasa_id)}`,
+				linkText: 'images.nasa.gov',
+				credit: m.photographer || m.secondary_creator || 'NASA',
+			};
+		})).slice(0, 8);
+	}
+
 	let hnIds: number[] = [];
 	async function hn() {
 		if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
@@ -495,7 +557,7 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, photos, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, films, today, nasa, photos, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
@@ -600,6 +662,17 @@ const sources = [
 			img.onerror = () => fig.remove();
 			fig.append(img);
 			art.append(fig);
+		}
+		if (card.embed) {
+			const fig = art.querySelector('figure');
+			if (fig) {
+				fig.classList.add('play');
+				fig.addEventListener('click', () => {
+					const f = el('iframe');
+					f.src = card.embed!; f.allow = 'autoplay; fullscreen'; f.allowFullscreen = true;
+					fig.replaceChildren(f);
+				}, { once: true });
+			}
 		}
 		if (card.draw) {
 			const cv = el('canvas');
@@ -800,6 +873,12 @@ const sources = [
 		opacity: 0; transition: opacity 0.5s;
 	}
 	:global(.card figure.loaded img) { opacity: 1; }
+	:global(.card figure.play) { cursor: pointer; position: relative; }
+	:global(.card figure.play)::after {
+		content: '▶'; position: absolute; inset: 0; display: grid; place-items: center;
+		font-size: 3rem; color: #fff; text-shadow: 0 2px 12px #000;
+	}
+	:global(.card iframe) { display: block; width: 100%; aspect-ratio: 4 / 3; border: 0; }
 	:global(.card canvas) {
 		display: block; width: calc(100% + 32px); margin: 0 -16px 12px;
 		image-rendering: pixelated; aspect-ratio: 240 / 150;
