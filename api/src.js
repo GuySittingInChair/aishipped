@@ -12,7 +12,15 @@ const meta = (m = {}) => Object.fromEntries(['ImageDescription', 'DateTimeOrigin
 const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'chair', 'tapestry', 'mask', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
 const WELLCOME_Q = ['botany', 'anatomy', 'astronomy', 'alchemy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'magic', 'moon', 'ocean', 'birds'];
 
+const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'carnival', 'calligraphy', 'mosaic', 'astronomy', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
+
 export const SOURCES = {
+	europe: {
+		pages: EU_Q.length * 4,
+		ttl: 86400 * 7,
+		url: (p) => `https://api.europeana.eu/record/v2/search.json?query=${encodeURIComponent(EU_Q[p % EU_Q.length])}&wskey=api2demo&rows=24&start=${1 + Math.floor(p / EU_Q.length) * 100}&media=true&reusability=open&qf=TYPE:IMAGE`,
+		trim: (d) => ({ items: (d.items ?? []).map((i) => ({ id: i.id, title: i.title?.slice(0, 1).map((t) => t.slice(0, 300)), edmPreview: i.edmPreview, dcCreator: i.dcCreator?.slice(0, 1), year: i.year, country: i.country, guid: i.guid, dataProvider: i.dataProvider, rights: i.rights })) }),
+	},
 	design: {
 		pages: VAM_Q.length * 2,
 		ttl: 86400 * 7,

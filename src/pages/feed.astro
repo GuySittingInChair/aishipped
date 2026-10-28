@@ -639,7 +639,7 @@ const sources = [
 		};
 	}
 	async function europe() {
-		const d = await getJSON(`https://api.europeana.eu/record/v2/search.json?${qs({ query: pick(EU_Q), wskey: 'api2demo', rows: 24, start: 1 + rand(400), media: 'true', reusability: 'open', qf: 'TYPE:IMAGE' })}`);
+		const d = await relay('europe', EU_Q.length * 4, `https://api.europeana.eu/record/v2/search.json?${qs({ query: pick(EU_Q), wskey: 'api2demo', rows: 24, start: 1 + rand(400), media: 'true', reusability: 'open', qf: 'TYPE:IMAGE' })}`);
 		return shuffle((d.items ?? []).map(europeCard).filter(Boolean));
 	}
 
