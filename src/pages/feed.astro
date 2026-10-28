@@ -1,0 +1,701 @@
+---
+import Base from '../layouts/Base.astro';
+
+const sources = [
+	['art', 'art', 'public-domain paintings, prints and objects from the Art Institute of Chicago', 3],
+	['nature', 'nature', 'the most-loved wildlife photos on iNaturalist, identified by people who know', 3],
+	['featured', 'wikipedia: best of', 'featured articles, pictures of the day, "did you know" and on-this-day, from a random day since 2016', 3],
+	['random', 'wikipedia: random', 'a truly random article. most are small. some are wonderful', 2],
+	['space', 'space', "NASA's astronomy picture of the day, from any day since 1995", 2],
+	['poems', 'poems', 'short public-domain poems', 2],
+	['automata', 'automata', 'one-dimensional cellular automata drawn on your own machine', 1],
+	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
+] as const;
+---
+
+<Base title="the feed · aishipped.lol" description="An endless scroll with no ads, no tracking and an algorithm you set yourself.">
+	<div class="bar" id="bar">
+		<a href="/" class="home">aishipped.lol</a>
+		<span class="stat"><span id="clock">0 min</span> · <span id="count">0</span> cards</span>
+		<span class="spacer"></span>
+		<button id="tuneBtn" aria-expanded="false" aria-controls="tune">tune</button>
+		<button id="savedBtn" aria-controls="saved">saved <span id="savedCount">0</span></button>
+	</div>
+
+	<main>
+		<header class="hero">
+			<p class="prompt">$ cat /feed</p>
+			<h1>the feed<span class="cursor">_</span></h1>
+			<p class="tag">an endless scroll that isn't farming you.</p>
+			<ol class="rules">
+				<li><b>you are the algorithm.</b> Press <em>tune</em>: each slider is how often a kind of card shows up. That is the whole ranking.</li>
+				<li><b>every card tells you why it's here.</b> No hidden engagement score. Cards are picked at random using your weights.</li>
+				<li><b>nothing is tracked.</b> This page has no analytics. Your weights and saves stay in this browser.</li>
+				<li><b>everything is credited and linked.</b> All of it comes from museums, Wikipedia, NASA and people who share their work openly.</li>
+				<li><b>it shows you the clock.</b> The time you've spent is at the top, and every chapter ends with a place to stop.</li>
+			</ol>
+			<p class="keys">keys: <kbd>j</kbd>/<kbd>k</kbd> next/previous card · <kbd>s</kbd> save · <kbd>m</kbd> more like this</p>
+		</header>
+
+		<div id="stream"></div>
+		<p id="sentinel">loading…</p>
+	</main>
+
+	<aside id="tune" class="panel" hidden>
+		<h2>tune</h2>
+		<p class="lede">How often each kind of card shows up. 0 turns it off.</p>
+		{sources.map(([id, name, desc, w]) => (
+			<label class="slider">
+				<span class="name">{name} <output data-for={id}>{w}</output></span>
+				<input type="range" min="0" max="5" step="1" value={w} data-src={id} data-default={w} />
+				<span class="desc">{desc}</span>
+			</label>
+		))}
+		<label class="slider">
+			<span class="name">chapter length <output data-for="chapter">25</output></span>
+			<input type="range" min="10" max="60" step="5" value="25" id="chapterLen" />
+			<span class="desc">cards between each stopping point</span>
+		</label>
+		<p class="row"><button id="resetTune">reset</button> <button data-close>done</button></p>
+	</aside>
+
+	<aside id="saved" class="panel" hidden>
+		<h2>saved</h2>
+		<p class="lede">Kept in this browser only.</p>
+		<ul id="savedList"></ul>
+		<p class="row"><button id="exportSaved">copy as text</button> <button data-close>done</button></p>
+	</aside>
+</Base>
+
+<script>
+	type Card = {
+		id: string;
+		src: string;
+		title: string;
+		sub?: string;
+		body?: string;
+		verse?: boolean;
+		img?: string;
+		imgAlt?: string;
+		placeholder?: string;
+		link: string;
+		linkText?: string;
+		extra?: [string, string];
+		credit?: string;
+		draw?: (c: HTMLCanvasElement) => void;
+		more?: () => Promise<Card[]>;
+	};
+
+	const W_KEY = 'aishipped.feed.weights';
+	const S_KEY = 'aishipped.feed.saved';
+	const load = <T,>(k: string, d: T): T => {
+		try { return JSON.parse(localStorage.getItem(k) || '') ?? d; } catch { return d; }
+	};
+	const store = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+	const rand = (n: number) => Math.floor(Math.random() * n);
+	const pick = <T,>(a: T[]) => a[rand(a.length)];
+	const shuffle = <T,>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+	const getJSON = async (url: string) => {
+		const r = await fetch(url);
+		if (!r.ok) throw new Error(`${r.status} ${url}`);
+		return r.json();
+	};
+	const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
+	const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])).toString();
+
+	// ---- sources ------------------------------------------------------------
+
+	const AIC = 'https://api.artic.edu/api/v1/artworks/search';
+	const AIC_FIELDS = 'id,title,image_id,artist_display,artist_id,date_display,medium_display,thumbnail';
+	function artCard(a: any): Card | null {
+		if (!a.image_id) return null;
+		return {
+			id: `art:${a.id}`,
+			src: 'art',
+			title: a.title,
+			sub: [a.artist_display?.split('\n')[0], a.date_display].filter(Boolean).join(' · '),
+			body: a.medium_display,
+			img: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg`,
+			imgAlt: a.thumbnail?.alt_text || a.title,
+			placeholder: a.thumbnail?.lqip,
+			link: `https://www.artic.edu/artworks/${a.id}`,
+			linkText: 'artic.edu',
+			credit: 'Art Institute of Chicago · public domain',
+			more: a.artist_id ? async () => {
+				const d = await getJSON(`${AIC}?query[bool][must][0][term][artist_id]=${a.artist_id}&query[bool][must][1][term][is_public_domain]=true&limit=12&fields=${AIC_FIELDS}`);
+				return shuffle(d.data.map(artCard).filter(Boolean)).slice(0, 3);
+			} : undefined,
+		};
+	}
+	async function art() {
+		const d = await getJSON(`${AIC}?query[term][is_public_domain]=true&limit=20&page=${1 + rand(490)}&fields=${AIC_FIELDS}`);
+		return shuffle(d.data.map(artCard).filter(Boolean));
+	}
+
+	const INAT = 'https://api.inaturalist.org/v1/observations';
+	function natureCard(o: any): Card | null {
+		const photo = o.photos?.[0];
+		if (!photo || !o.taxon) return null;
+		const t = o.taxon;
+		return {
+			id: `nature:${o.id}`,
+			src: 'nature',
+			title: t.preferred_common_name ? t.preferred_common_name[0].toUpperCase() + t.preferred_common_name.slice(1) : t.name,
+			sub: [t.preferred_common_name ? t.name : '', o.place_guess, o.observed_on].filter(Boolean).join(' · '),
+			img: photo.url.replace('/square.', '/large.'),
+			imgAlt: t.preferred_common_name || t.name,
+			link: o.uri,
+			linkText: 'inaturalist.org',
+			extra: t.wikipedia_url ? [t.wikipedia_url.replace('http:', 'https:'), 'wikipedia'] : undefined,
+			credit: photo.attribution,
+			more: async () => {
+				const d = await getJSON(`${INAT}?${qs({ taxon_id: t.id, photos: 'true', quality_grade: 'research', order_by: 'votes', per_page: 12 })}`);
+				return shuffle(d.results.filter((x: any) => x.id !== o.id).map(natureCard).filter(Boolean)).slice(0, 3);
+			},
+		};
+	}
+	async function nature() {
+		const d = await getJSON(`${INAT}?${qs({ quality_grade: 'research', photos: 'true', order_by: 'votes', per_page: 50, page: 1 + rand(190) })}`);
+		return shuffle(d.results.map(natureCard).filter(Boolean));
+	}
+
+	const WIKI = 'https://en.wikipedia.org/w/api.php';
+	function wikiCard(p: any, src: string): Card {
+		return {
+			id: `wiki:${p.pageid ?? p.title}`,
+			src,
+			title: p.title,
+			sub: p.description,
+			body: p.extract,
+			img: p.thumbnail?.source,
+			imgAlt: p.title,
+			link: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replace(/ /g, '_'))}`,
+			linkText: 'wikipedia',
+			credit: 'Wikipedia · CC BY-SA',
+			more: () => wikiQuery({ generator: 'search', gsrsearch: `morelike:${p.title}`, gsrlimit: 4 }, src).then((c) => c.slice(0, 3)),
+		};
+	}
+	async function wikiQuery(params: Record<string, string | number>, src: string) {
+		const d = await getJSON(`${WIKI}?${qs({
+			action: 'query', format: 'json', origin: '*', prop: 'extracts|pageimages|description',
+			exintro: 1, explaintext: 1, exlimit: 20, pithumbsize: 800, ...params,
+		})}`);
+		return Object.values(d.query?.pages ?? {})
+			.sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
+			.map((p: any) => wikiCard(p, src));
+	}
+	async function random() {
+		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random');
+		return cards.filter((c) => (c.body?.length ?? 0) > 250);
+	}
+
+	async function featured() {
+		const start = Date.UTC(2016, 0, 1);
+		const day = new Date(start + rand(Date.now() - start - 864e5));
+		const ymd = day.toISOString().slice(0, 10);
+		const d = await getJSON(`https://en.wikipedia.org/api/rest_v1/feed/featured/${ymd.replace(/-/g, '/')}`);
+		const out: Card[] = [];
+		const nice = day.toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+		if (d.tfa) {
+			const c = wikiCard({ title: d.tfa.titles?.normalized ?? d.tfa.title, description: d.tfa.description, extract: d.tfa.extract, thumbnail: d.tfa.thumbnail, pageid: d.tfa.pageid }, 'featured');
+			c.sub = `featured article, ${nice}` + (d.tfa.description ? ` · ${d.tfa.description}` : '');
+			out.push(c);
+		}
+		if (d.image?.thumbnail) {
+			out.push({
+				id: `potd:${d.image.title}`,
+				src: 'featured',
+				title: d.image.description?.text ? text(d.image.description.html ?? d.image.description.text).slice(0, 160) : d.image.title.replace(/^File:/, ''),
+				sub: `picture of the day, ${nice}`,
+				img: d.image.thumbnail.source,
+				imgAlt: d.image.description?.text ?? '',
+				link: d.image.file_page,
+				linkText: 'wikimedia commons',
+				credit: [d.image.artist?.text, d.image.license?.type].filter(Boolean).join(' · '),
+			});
+		}
+		for (const e of shuffle(d.onthisday ?? []).slice(0, 3)) {
+			const p = e.pages?.[0];
+			out.push({
+				id: `otd:${e.year}:${e.text.slice(0, 40)}`,
+				src: 'featured',
+				title: String(e.year),
+				sub: `on this day: ${day.toLocaleDateString('en', { month: 'long', day: 'numeric', timeZone: 'UTC' })}`,
+				body: e.text,
+				img: p?.thumbnail?.source,
+				imgAlt: p?.title,
+				link: p ? p.content_urls?.desktop?.page ?? `https://en.wikipedia.org/wiki/${p.title}` : 'https://en.wikipedia.org/wiki/Wikipedia:On_this_day',
+				linkText: 'wikipedia',
+				more: p ? () => wikiQuery({ titles: e.pages.slice(0, 3).map((x: any) => x.titles?.normalized ?? x.title).join('|') }, 'featured') : undefined,
+			});
+		}
+		for (const y of shuffle(d.dyk ?? []).slice(0, 3)) {
+			const doc = new DOMParser().parseFromString(y.html, 'text/html');
+			const a = doc.querySelector('b a, a');
+			const title = a?.getAttribute('title');
+			out.push({
+				id: `dyk:${y.text.slice(0, 50)}`,
+				src: 'featured',
+				title: 'did you know…',
+				body: '…' + text(y.html).replace(/^\.\.\.\s*/, ' '),
+				link: title ? `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}` : 'https://en.wikipedia.org/wiki/Wikipedia:Did_you_know',
+				linkText: 'wikipedia',
+				more: title ? () => wikiQuery({ titles: title }, 'featured') : undefined,
+			});
+		}
+		return shuffle(out);
+	}
+
+	async function space() {
+		const d = await getJSON('https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY&count=10&thumbs=true');
+		return d
+			.filter((a: any) => a.media_type === 'image' && a.url && !/nasa-logo/.test(a.url))
+			.map((a: any): Card => ({
+				id: `apod:${a.date}`,
+				src: 'space',
+				title: a.title,
+				sub: `astronomy picture of the day · ${a.date}`,
+				body: a.explanation,
+				img: a.url,
+				imgAlt: a.title,
+				link: `https://apod.nasa.gov/apod/ap${a.date.slice(2).replace(/-/g, '')}.html`,
+				linkText: 'apod.nasa.gov',
+				credit: a.copyright ? `© ${a.copyright.trim()}` : 'NASA · public domain',
+			}));
+	}
+
+	function poemCard(p: any): Card {
+		return {
+			id: `poem:${p.author}:${p.title}`,
+			src: 'poems',
+			title: p.title,
+			sub: p.author,
+			body: p.lines.join('\n').replace(/\n{3,}/g, '\n\n'),
+			verse: true,
+			link: `https://www.gutenberg.org/ebooks/search/?query=${encodeURIComponent(p.author)}`,
+			linkText: 'their books on gutenberg',
+			more: async () => {
+				const d = await getJSON(`https://poetrydb.org/author/${encodeURIComponent(p.author)}/title,author,lines,linecount`);
+				return shuffle(Array.isArray(d) ? d.filter(short).filter((x: any) => x.title !== p.title) : []).slice(0, 2).map(poemCard);
+			},
+		};
+	}
+	const short = (p: any) => +p.linecount >= 4 && +p.linecount <= 40;
+	async function poems() {
+		const d = await getJSON('https://poetrydb.org/random/20/title,author,lines,linecount');
+		return d.filter(short).map(poemCard);
+	}
+
+	let hnIds: number[] = [];
+	async function hn() {
+		if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
+		const items = await Promise.all(hnIds.splice(0, 6).map((id) => getJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)));
+		return items.filter((i) => i && !i.dead && !i.deleted).map((i): Card => {
+			const thread = `https://news.ycombinator.com/item?id=${i.id}`;
+			let host = '';
+			try { host = i.url ? new URL(i.url).hostname.replace(/^www\./, '') : ''; } catch {}
+			return {
+				id: `hn:${i.id}`,
+				src: 'hn',
+				title: i.title,
+				sub: [host, `${i.score} points`, `${i.descendants ?? 0} comments`].filter(Boolean).join(' · '),
+				body: i.text ? text(i.text) : undefined,
+				link: i.url || thread,
+				linkText: host || 'news.ycombinator.com',
+				extra: i.url ? [thread, 'comments'] : undefined,
+			};
+		});
+	}
+
+	const RULES = [18, 22, 30, 45, 54, 57, 60, 62, 73, 75, 86, 89, 90, 99, 101, 105, 106, 109, 110, 120, 122, 124, 126, 129, 135, 137, 146, 147, 149, 150, 153, 161, 165, 169, 182, 193, 195, 225];
+	function automatonCard(rule: number, seedKind: number): Card {
+		const bits = rule.toString(2).padStart(8, '0');
+		const table = ['111', '110', '101', '100', '011', '010', '001', '000'].map((k, i) => `${k}→${bits[i]}`).join('  ');
+		const seedName = ['one live cell', 'random noise', 'a few scattered cells'][seedKind];
+		return {
+			id: `ca:${rule}:${seedKind}:${Math.random()}`,
+			src: 'automata',
+			title: `rule ${rule}`,
+			sub: `starting from ${seedName}`,
+			body: `Each row is made from the row above with only these eight rules, reading each cell and its two neighbours:\n${table}\nNo one designed this picture; it falls out of the number ${rule}.`,
+			link: `https://mathworld.wolfram.com/ElementaryCellularAutomaton.html`,
+			linkText: 'how it works',
+			draw: (c) => {
+				const cols = 240, rows = 150;
+				c.width = cols; c.height = rows;
+				const g = c.getContext('2d')!;
+				const css = getComputedStyle(document.documentElement);
+				const hue = rand(360);
+				g.fillStyle = css.getPropertyValue('--panel') || '#111';
+				g.fillRect(0, 0, cols, rows);
+				let row = new Uint8Array(cols);
+				if (seedKind === 0) row[cols >> 1] = 1;
+				else if (seedKind === 1) row = row.map(() => +(Math.random() < 0.5));
+				else for (let i = 0; i < 6; i++) row[rand(cols)] = 1;
+				for (let y = 0; y < rows; y++) {
+					g.fillStyle = `hsl(${(hue + y * 0.6) % 360} 90% 70%)`;
+					for (let x = 0; x < cols; x++) if (row[x]) g.fillRect(x, y, 1, 1);
+					const next = new Uint8Array(cols);
+					for (let x = 0; x < cols; x++) {
+						const k = (row[(x + cols - 1) % cols] << 2) | (row[x] << 1) | row[(x + 1) % cols];
+						next[x] = (rule >> k) & 1;
+					}
+					row = next;
+				}
+			},
+			more: async () => [0, 1, 2].filter((s) => s !== seedKind).map((s) => automatonCard(rule, s)),
+		};
+	}
+	async function automata() {
+		return Array.from({ length: 4 }, () => automatonCard(pick(RULES), rand(3)));
+	}
+
+	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn };
+	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
+		const id = input.dataset.src!;
+		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
+	}
+
+	function refill(id: string) {
+		const s = SOURCES[id];
+		s.pending ??= s.fill()
+			.then((cards) => { s.queue.push(...cards.filter((c) => !seen.has(c.id))); s.fails = 0; })
+			.catch(() => { s.fails++; })
+			.finally(() => { s.pending = undefined; });
+		return s.pending;
+	}
+
+	// ---- weights ------------------------------------------------------------
+
+	const sliders = [...document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')];
+	const chapterInput = document.getElementById('chapterLen') as HTMLInputElement;
+	const savedWeights = load<Record<string, number>>(W_KEY, {});
+	for (const s of sliders) if (savedWeights[s.dataset.src!] != null) s.value = String(savedWeights[s.dataset.src!]);
+	if (savedWeights.chapter) chapterInput.value = String(savedWeights.chapter);
+	const weights = () => Object.fromEntries(sliders.map((s) => [s.dataset.src!, +s.value]));
+	function syncOutputs() {
+		for (const s of [...sliders, chapterInput]) {
+			document.querySelector(`output[data-for="${s.dataset.src ?? 'chapter'}"]`)!.textContent = s.value;
+		}
+	}
+	function saveWeights() { store(W_KEY, { ...weights(), chapter: +chapterInput.value }); syncOutputs(); }
+	for (const s of [...sliders, chapterInput]) s.addEventListener('input', saveWeights);
+	document.getElementById('resetTune')!.addEventListener('click', () => {
+		for (const s of sliders) s.value = s.dataset.default!;
+		chapterInput.value = '25';
+		saveWeights();
+	});
+	syncOutputs();
+
+	function choose(exclude: Set<string>) {
+		const w = weights();
+		const live = Object.entries(w).filter(([id, v]) => v > 0 && !exclude.has(id) && SOURCES[id].fails < 3);
+		const total = live.reduce((n, [, v]) => n + v, 0);
+		if (!total) return null;
+		let r = Math.random() * total;
+		for (const [id, v] of live) if ((r -= v) < 0) return { id, why: `drawn at random from ${SOURCES[id].name}: weight ${v} of ${total} (${Math.round((v / total) * 100)}%)` };
+		return null;
+	}
+
+	async function nextCard(): Promise<[Card, string] | null> {
+		const tried = new Set<string>();
+		for (;;) {
+			const c = choose(tried);
+			if (!c) return null;
+			const s = SOURCES[c.id];
+			if (s.queue.length < 3) refill(c.id);
+			if (!s.queue.length) {
+				// don't stall the feed on a slow source: try another one that's ready
+				const ready = Object.keys(SOURCES).some((id) => id !== c.id && weights()[id] > 0 && SOURCES[id].queue.length);
+				if (ready) { tried.add(c.id); continue; }
+				await refill(c.id);
+			}
+			const card = s.queue.shift();
+			if (card && !seen.has(card.id)) return [card, c.why];
+			if (!s.queue.length) tried.add(c.id);
+		}
+	}
+
+	// ---- rendering ----------------------------------------------------------
+
+	const stream = document.getElementById('stream')!;
+	const seen = new Set<string>();
+	let saved = load<{ id: string; title: string; link: string; src: string }[]>(S_KEY, []);
+	let shown = 0;
+	let chapter = 1;
+	let sinceBreak = 0;
+	const t0 = Date.now();
+
+	const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, txt?: string) => {
+		const e = document.createElement(tag);
+		if (cls) e.className = cls;
+		if (txt != null) e.textContent = txt;
+		return e;
+	};
+	const link = (href: string, label: string) => {
+		const a = el('a', '', label);
+		a.href = href; a.target = '_blank'; a.rel = 'noopener';
+		return a;
+	};
+
+	function render(card: Card, why: string) {
+		seen.add(card.id);
+		const art = el('article', `card src-${card.src}`);
+		art.dataset.id = card.id;
+		art.tabIndex = -1;
+		art.append(el('p', 'why', why));
+
+		if (card.img) {
+			const fig = el('figure');
+			if (card.placeholder) fig.style.backgroundImage = `url("${card.placeholder}")`;
+			const img = el('img');
+			img.src = card.img; img.alt = card.imgAlt ?? ''; img.loading = 'lazy'; img.decoding = 'async';
+			img.referrerPolicy = 'no-referrer';
+			img.onload = () => fig.classList.add('loaded');
+			img.onerror = () => fig.remove();
+			fig.append(img);
+			art.append(fig);
+		}
+		if (card.draw) {
+			const cv = el('canvas');
+			card.draw(cv);
+			art.append(cv);
+		}
+		art.append(el('h3', '', card.title));
+		if (card.sub) art.append(el('p', 'sub', card.sub));
+		if (card.body) {
+			const b = el('p', card.verse ? 'body verse' : 'body', card.body);
+			b.addEventListener('click', () => b.classList.toggle('open'));
+			art.append(b);
+			requestAnimationFrame(() => { if (b.scrollHeight > b.clientHeight + 4) b.classList.add('clamped'); });
+		}
+
+		const foot = el('p', 'foot');
+		foot.append(link(card.link, `open on ${card.linkText ?? 'source'} ↗`));
+		if (card.extra) foot.append(link(card.extra[0], `${card.extra[1]} ↗`));
+		const star = el('button', 'save', isSaved(card.id) ? '★ saved' : '☆ save');
+		star.addEventListener('click', () => toggleSave(card, star));
+		foot.append(star);
+		if (card.more) {
+			const more = el('button', 'more', '↳ more like this');
+			more.addEventListener('click', async () => {
+				more.disabled = true; more.textContent = '↳ finding…';
+				try {
+					const cards = (await card.more!()).filter((c) => !seen.has(c.id));
+					let after: Element = art;
+					for (const c of cards) {
+						const n = render(c, `you asked for more like "${card.title.slice(0, 60)}"`);
+						n.classList.add('child');
+						after.after(n); after = n;
+					}
+					more.textContent = cards.length ? `↳ ${cards.length} added below` : '↳ nothing more found';
+				} catch { more.textContent = '↳ source didn’t answer'; more.disabled = false; }
+			});
+			foot.append(more);
+		}
+		art.append(foot);
+		if (card.credit) art.append(el('p', 'credit', card.credit));
+		return art;
+	}
+
+	function chapterBreak() {
+		const mins = Math.round((Date.now() - t0) / 60000);
+		const d = el('div', 'chapter');
+		d.append(
+			el('p', 'big', `end of chapter ${chapter}`),
+			el('p', '', `${shown} cards · ${mins} min here. A good place to stop. Or keep going: chapter ${chapter + 1} is below.`),
+		);
+		chapter++;
+		return d;
+	}
+
+	let busy = false;
+	async function more(n = 5) {
+		if (busy) return;
+		busy = true;
+		const sentinel = document.getElementById('sentinel')!;
+		sentinel.textContent = 'loading…';
+		for (let i = 0; i < n; i++) {
+			const next = await nextCard();
+			if (!next) { sentinel.textContent = 'every source is off or not answering. press tune.'; break; }
+			stream.append(render(...next));
+			shown++; sinceBreak++;
+			document.getElementById('count')!.textContent = String(shown);
+			if (sinceBreak >= +chapterInput.value) { stream.append(chapterBreak()); sinceBreak = 0; }
+		}
+		busy = false;
+		if (nearBottom()) more();
+	}
+	const nearBottom = () => document.getElementById('sentinel')!.getBoundingClientRect().top < innerHeight * 2.5;
+	new IntersectionObserver((e) => { if (e[0].isIntersecting) more(); }, { rootMargin: '1500px 0px' })
+		.observe(document.getElementById('sentinel')!);
+
+	setInterval(() => {
+		const m = Math.floor((Date.now() - t0) / 60000);
+		document.getElementById('clock')!.textContent = m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+	}, 15000);
+
+	// ---- saves --------------------------------------------------------------
+
+	const isSaved = (id: string) => saved.some((s) => s.id === id);
+	function toggleSave(card: Card, btn: HTMLButtonElement) {
+		if (isSaved(card.id)) saved = saved.filter((s) => s.id !== card.id);
+		else saved.unshift({ id: card.id, title: card.title, link: card.link, src: SOURCES[card.src]?.name ?? card.src });
+		store(S_KEY, saved);
+		btn.textContent = isSaved(card.id) ? '★ saved' : '☆ save';
+		renderSaved();
+	}
+	function renderSaved() {
+		document.getElementById('savedCount')!.textContent = String(saved.length);
+		const ul = document.getElementById('savedList')!;
+		ul.replaceChildren(...saved.map((s) => {
+			const li = el('li');
+			li.append(link(s.link, s.title), el('span', 'src', ` ${s.src}`));
+			const x = el('button', 'x', '×');
+			x.setAttribute('aria-label', 'remove');
+			x.addEventListener('click', () => {
+				saved = saved.filter((v) => v.id !== s.id);
+				store(S_KEY, saved);
+				const b = stream.querySelector(`[data-id="${CSS.escape(s.id)}"] .save`);
+				if (b) b.textContent = '☆ save';
+				renderSaved();
+			});
+			li.append(x);
+			return li;
+		}));
+		if (!saved.length) ul.append(el('li', 'src', 'nothing yet. press ☆ on a card.'));
+	}
+	document.getElementById('exportSaved')!.addEventListener('click', (e) => {
+		navigator.clipboard?.writeText(saved.map((s) => `${s.title}\n${s.link}`).join('\n\n'));
+		(e.target as HTMLButtonElement).textContent = 'copied';
+	});
+	renderSaved();
+
+	// ---- panels & keys ------------------------------------------------------
+
+	function toggle(id: string, force?: boolean) {
+		for (const p of document.querySelectorAll<HTMLElement>('.panel')) {
+			const open = p.id === id ? (force ?? p.hidden) : false;
+			p.hidden = !open;
+			document.querySelector(`[aria-controls="${p.id}"]`)?.setAttribute('aria-expanded', String(open));
+		}
+	}
+	document.getElementById('tuneBtn')!.addEventListener('click', () => toggle('tune'));
+	document.getElementById('savedBtn')!.addEventListener('click', () => toggle('saved'));
+	for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => toggle('', false));
+
+	function current() {
+		const cards = [...stream.querySelectorAll<HTMLElement>('.card')];
+		const top = 70;
+		return { cards, i: cards.findIndex((c) => c.getBoundingClientRect().bottom > top + 40) };
+	}
+	addEventListener('keydown', (e) => {
+		if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+		const { cards, i } = current();
+		const go = (n: number) => { const c = cards[Math.max(0, Math.min(cards.length - 1, n))]; c?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+		if (e.key === 'j') go(cards[i] && cards[i].getBoundingClientRect().top > 80 ? i : i + 1);
+		else if (e.key === 'k') go(i - 1);
+		else if (e.key === 's') cards[i]?.querySelector<HTMLButtonElement>('.save')?.click();
+		else if (e.key === 'm') cards[i]?.querySelector<HTMLButtonElement>('.more:not(:disabled)')?.click();
+		else if (e.key === 'Escape') toggle('', false);
+	});
+
+	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0) refill(id);
+	more(4);
+</script>
+
+<style>
+	.bar {
+		position: sticky; top: 0; z-index: 5;
+		display: flex; align-items: center; gap: 12px;
+		padding: 10px 16px;
+		background: color-mix(in srgb, var(--bg) 88%, transparent);
+		backdrop-filter: blur(8px);
+		border-bottom: 1px solid var(--line);
+		font-size: 0.85rem;
+	}
+	.home { text-decoration: none; }
+	.stat { color: var(--dim); }
+	.spacer { flex: 1; }
+	button {
+		font: inherit; color: var(--text); background: var(--panel);
+		border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; cursor: pointer;
+	}
+	button:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+	button:disabled { color: var(--dim); cursor: default; }
+	main { max-width: 680px; }
+	.hero { padding: 48px 0 24px; }
+	.prompt { color: var(--dim); margin: 0; }
+	h1 { font-size: clamp(2rem, 8vw, 3rem); margin: 4px 0 8px; }
+	.cursor { animation: blink 1s steps(1) infinite; }
+	@keyframes blink { 50% { opacity: 0; } }
+	.tag { color: var(--amber); font-size: 1.05rem; margin: 0 0 16px; }
+	.rules { padding-left: 1.4em; margin: 0 0 16px; font-size: 0.9rem; }
+	.rules li { margin: 0 0 6px; }
+	.rules b { color: var(--green); font-weight: 600; }
+	.keys { color: var(--dim); font-size: 0.8rem; }
+	kbd { border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; color: var(--text); }
+
+	#stream { display: flex; flex-direction: column; gap: 28px; }
+	:global(.card) {
+		background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+		padding: 14px 16px 12px; scroll-margin-top: 60px;
+		animation: rise 0.4s ease-out;
+	}
+	@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+	:global(.card.child) { margin-left: 20px; border-left: 2px solid var(--amber); }
+	:global(.card .why) { color: var(--dim); font-size: 0.72rem; margin: 0 0 10px; }
+	:global(.card .why)::before { content: '# '; }
+	:global(.card figure) {
+		margin: 0 -16px 12px; background: #0006 center / cover; min-height: 120px;
+	}
+	:global(.card figure img) {
+		display: block; width: 100%; max-height: 80vh; object-fit: contain;
+		opacity: 0; transition: opacity 0.5s;
+	}
+	:global(.card figure.loaded img) { opacity: 1; }
+	:global(.card canvas) {
+		display: block; width: calc(100% + 32px); margin: 0 -16px 12px;
+		image-rendering: pixelated; aspect-ratio: 240 / 150;
+	}
+	:global(.card h3) { margin: 0 0 2px; font-size: 1.1rem; }
+	:global(.card .sub) { color: var(--amber); font-size: 0.82rem; margin: 0 0 8px; }
+	:global(.card .body) {
+		margin: 0 0 10px; font-size: 0.9rem; white-space: pre-line;
+		display: -webkit-box; -webkit-line-clamp: 7; line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden;
+	}
+	:global(.card .body.verse) { -webkit-line-clamp: 16; line-clamp: 16; font-style: italic; }
+	:global(.card .body.clamped) { cursor: pointer; }
+	:global(.card .body.clamped:not(.open))::after { content: ''; }
+	:global(.card .body.open) { display: block; }
+	:global(.card .foot) { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0; font-size: 0.82rem; }
+	:global(.card .foot button) { padding: 2px 8px; font-size: 0.8rem; }
+	:global(.card .credit) { color: var(--dim); font-size: 0.7rem; margin: 8px 0 0; }
+	:global(.src-automata canvas) { background: var(--panel); }
+
+	:global(.chapter) { text-align: center; padding: 28px 0; color: var(--dim); border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
+	:global(.chapter .big) { color: var(--green); font-size: 1.1rem; margin: 0 0 4px; }
+	:global(.chapter p) { margin: 0; }
+	#sentinel { text-align: center; color: var(--dim); padding: 40px 0; }
+
+	.panel {
+		position: fixed; z-index: 6; top: 52px; right: 12px; width: min(380px, calc(100vw - 24px));
+		max-height: calc(100vh - 70px); overflow-y: auto;
+		background: var(--panel); border: 1px solid var(--green); border-radius: 8px; padding: 14px 16px;
+		box-shadow: 0 10px 40px #000a;
+	}
+	.panel h2 { font-size: 1rem; }
+	.slider { display: grid; gap: 2px; margin: 0 0 12px; }
+	.slider .name { display: flex; justify-content: space-between; color: var(--green); font-size: 0.88rem; }
+	.slider output { color: var(--amber); }
+	.slider .desc { color: var(--dim); font-size: 0.72rem; }
+	.slider input { accent-color: var(--green); width: 100%; }
+	.row { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 0; }
+	#savedList { list-style: none; padding: 0; margin: 0; font-size: 0.85rem; }
+	#savedList :global(li) { display: flex; gap: 6px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+	#savedList :global(li a) { flex: 1; }
+	#savedList :global(.src) { color: var(--dim); font-size: 0.72rem; }
+	#savedList :global(.x) { padding: 0 6px; }
+</style>
