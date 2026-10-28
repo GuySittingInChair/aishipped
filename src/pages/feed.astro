@@ -1,5 +1,10 @@
 ---
 import Base from '../layouts/Base.astro';
+import { readFileSync } from 'node:fs';
+
+// snapshot counts are baked into the page so the first fetch needs no round trip
+let snaps = '{}';
+try { snaps = readFileSync('public/data/manifest.json', 'utf8'); } catch {}
 
 const sources = [
 	['art', 'art', 'public-domain paintings, prints and objects from the Art Institute of Chicago', 3],
@@ -41,6 +46,7 @@ const sources = [
 	<link rel="preconnect" href="https://images-assets.nasa.gov" crossorigin />
 	<link rel="preconnect" href="https://mastodon.social" crossorigin />
 	<link rel="preconnect" href="https://earthquake.usgs.gov" crossorigin />
+	<script type="application/json" id="snaps" set:html={snaps} />
 	<div class="bar" id="bar">
 		<a href="/" class="home">aishipped.lol</a>
 		<span class="stat"><span id="clock">0 min</span> · <span id="count">0</span> cards</span>
@@ -133,7 +139,7 @@ const sources = [
 	};
 	// slow sources go through our CDN cache first, then straight to the source if that fails
 	// fastest first: a build-time snapshot on the CDN, then the cached relay, then the source itself
-	let snaps: Promise<Record<string, number>> = getJSON('/data/manifest.json', 3000).catch(() => ({}));
+	const snaps: Promise<Record<string, number>> = Promise.resolve(JSON.parse(document.getElementById('snaps')?.textContent || '{}'));
 	const snapshot = async (s: string) => {
 		const n = (await snaps)[s];
 		if (!n) throw new Error('no snapshot');

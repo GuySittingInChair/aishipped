@@ -16,7 +16,7 @@ const done = Object.fromEntries(Object.keys(COUNT).map((s) => [s, 0]));
 async function run([s, i, p]) {
 	const src = SOURCES[s];
 	try {
-		const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped.lol feed' }, signal: AbortSignal.timeout(45000) });
+		const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped-feed/1.0 (https://aishipped.lol; build snapshot)' }, signal: AbortSignal.timeout(45000) });
 		if (!r.ok) throw new Error(r.status);
 		const d = await r.json();
 		// number files by success so the manifest count has no gaps
@@ -26,7 +26,7 @@ async function run([s, i, p]) {
 	} catch (e) { console.warn(`snapshot ${s} ${i}: ${e.message}`); }
 }
 const queue = [...jobs];
-await Promise.all(Array.from({ length: 6 }, async () => { while (queue.length) await run(queue.shift()); }));
+await Promise.all(Array.from({ length: 3 }, async () => { while (queue.length) await run(queue.shift()); }));
 // poems: every short poem on PoetryDB, shuffled into small files
 try {
 	const lists = await Promise.all(Array.from({ length: 37 }, (_, i) =>

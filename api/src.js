@@ -54,7 +54,7 @@ async function relay(request) {
 	const src = SOURCES[q.get('s')];
 	const p = Number(q.get('p'));
 	if (!src || !Number.isInteger(p) || p < 0 || p >= src.pages) return new Response('bad request', { status: 400 });
-	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped.lol feed' }, signal: AbortSignal.timeout(25000) });
+	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped-feed/1.0 (https://aishipped.lol; build snapshot)' }, signal: AbortSignal.timeout(25000) });
 	if (!r.ok) return new Response('upstream error', { status: 502, headers: { 'Cache-Control': 'no-store' } });
 	const body = src.trim ? JSON.stringify(src.trim(await r.json(), p)) : await r.text();
 	return new Response(body, {
