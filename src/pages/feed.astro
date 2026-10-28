@@ -132,8 +132,12 @@ const sources = [
 		return r.json();
 	};
 	// slow sources go through our CDN cache first, then straight to the source if that fails
+	// fastest first: a build-time snapshot on the CDN, then the cached relay, then the source itself
+	const snaps: Record<string, number> = { nature: 40, space: 12 };
 	const relay = (s: string, pages: number, direct: string) =>
-		getJSON(`/api/src?s=${s}&p=${rand(pages)}`, 5000).catch(() => getJSON(direct));
+		getJSON(`/data/${s}-${rand(snaps[s])}.json`, 4000)
+			.catch(() => getJSON(`/api/src?s=${s}&p=${rand(pages)}`, 5000))
+			.catch(() => getJSON(direct));
 	const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
 	const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])).toString();
 

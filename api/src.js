@@ -1,6 +1,6 @@
 // Edge-cached relay for the feed's slowest sources (iNaturalist, NASA APOD).
 // Each (s, p) pair is one fixed batch, so the CDN can serve it to everyone instantly.
-const SOURCES = {
+export const SOURCES = {
 	nature: {
 		pages: 190,
 		ttl: 86400,
