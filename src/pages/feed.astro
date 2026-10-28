@@ -9,6 +9,11 @@ const sources = [
 	['space', 'space', "NASA's astronomy picture of the day, from any day since 1995", 2],
 	['poems', 'poems', 'short public-domain poems', 2],
 	['automata', 'automata', 'one-dimensional cellular automata drawn on your own machine', 1],
+	['photos', 'photos', 'featured pictures on Wikimedia Commons, voted the best of 100 million files', 3],
+	['history', 'old photos', 'photographs from the Library of Congress, mostly 1860s–1960s', 2],
+	['books', 'books', 'classic and well-loved books from Open Library, by subject', 2],
+	['planet', 'the planet right now', 'earthquakes from the last day, live from the US Geological Survey', 1],
+	['fedi', 'fediverse', 'posts people are boosting on mastodon.social right now', 1],
 	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
 ] as const;
 ---
@@ -128,7 +133,35 @@ const sources = [
 			} : undefined,
 		};
 	}
+	const CMA = 'https://openaccess-api.clevelandart.org/api/artworks/';
+	function cmaCard(a: any): Card | null {
+		const img = a.images?.web?.url;
+		if (!img) return null;
+		const who = a.creators?.[0];
+		return {
+			id: `cma:${a.id}`,
+			src: 'art',
+			title: a.title,
+			sub: [who?.description, a.creation_date].filter(Boolean).join(' · '),
+			body: [a.technique, a.wall_description || a.description || a.fun_fact].filter(Boolean).map(text).join('\n'),
+			img,
+			imgAlt: a.title,
+			link: a.url,
+			linkText: 'clevelandart.org',
+			credit: 'Cleveland Museum of Art · CC0',
+			more: who?.id ? async () => {
+				const d = await getJSON(`${CMA}?${qs({ cc0: 1, has_image: 1, limit: 12, artists: who.description.split(' (')[0] })}`);
+				return shuffle(d.data.filter((x: any) => x.id !== a.id).map(cmaCard).filter(Boolean)).slice(0, 3);
+			} : undefined,
+		};
+	}
 	async function art() {
+		if (Math.random() < 0.5) {
+			try {
+				const d = await getJSON(`${CMA}?${qs({ cc0: 1, has_image: 1, limit: 20, skip: rand(41000) })}`);
+				return shuffle(d.data.map(cmaCard).filter(Boolean));
+			} catch {}
+		}
 		const d = await getJSON(`${AIC}?query[term][is_public_domain]=true&limit=20&page=${1 + rand(490)}&fields=${AIC_FIELDS}`);
 		return shuffle(d.data.map(artCard).filter(Boolean));
 	}
@@ -287,6 +320,116 @@ const sources = [
 		return d.filter(short).map(poemCard);
 	}
 
+	const COMMONS = 'https://commons.wikimedia.org/w/api.php';
+	async function photos() {
+		const prefix = pick('ABCDEFGHIJKLMNOPRSTUVWZ'.split('')) + pick('aeioulnr'.split(''));
+		const d = await getJSON(`${COMMONS}?${qs({
+			action: 'query', format: 'json', origin: '*', generator: 'categorymembers',
+			gcmtitle: 'Category:Featured_pictures_on_Wikimedia_Commons', gcmtype: 'file', gcmlimit: 20,
+			gcmstartsortkeyprefix: prefix, prop: 'imageinfo', iiprop: 'url|extmetadata', iiurlwidth: 1000,
+		})}`);
+		return shuffle(Object.values(d.query?.pages ?? {}).map((p: any): Card | null => {
+			const i = p.imageinfo?.[0];
+			if (!i?.thumburl) return null;
+			const m = i.extmetadata ?? {};
+			const desc = m.ImageDescription ? text(m.ImageDescription.value) : '';
+			return {
+				id: `commons:${p.pageid}`,
+				src: 'photos',
+				title: (desc.split(/[.\n]/)[0] || p.title.replace(/^File:|\.\w+$/g, '')).slice(0, 140),
+				sub: m.DateTimeOriginal ? text(m.DateTimeOriginal.value).slice(0, 40) : undefined,
+				body: desc.length > 140 ? desc : undefined,
+				img: i.thumburl,
+				imgAlt: desc.slice(0, 200),
+				link: i.descriptionurl,
+				linkText: 'wikimedia commons',
+				credit: [m.Artist && text(m.Artist.value), m.LicenseShortName?.value].filter(Boolean).join(' · '),
+			};
+		}).filter(Boolean) as Card[]);
+	}
+
+	async function history() {
+		const d = await getJSON(`https://www.loc.gov/photos/?${qs({ fo: 'json', c: 25, sp: 1 + rand(2000), fa: 'online-format:image' })}`);
+		return shuffle(d.results.map((r: any): Card | null => {
+			const img = [...(r.image_url ?? [])].reverse().find((u: string) => /\.(jpg|gif|png)/.test(u));
+			if (!img || !r.title) return null;
+			return {
+				id: `loc:${r.id}`,
+				src: 'history',
+				title: r.title.replace(/^\[|\]$/g, '').replace(/^Untitled$/i, 'untitled photograph'),
+				sub: [r.date?.slice(0, 4), r.location?.slice(0, 2).join(', ')].filter(Boolean).join(' · '),
+				body: [r.description].flat().filter(Boolean).join(' '),
+				img: img.split('#')[0],
+				imgAlt: r.title,
+				link: r.url,
+				linkText: 'loc.gov',
+				credit: 'Library of Congress',
+			};
+		}).filter(Boolean));
+	}
+
+	const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'poetry', 'philosophy', 'adventure', 'astronomy', 'animals', 'cooking', 'mathematics', 'music', 'art', 'travel', 'humor', 'biography', 'psychology', 'ocean', 'architecture', 'gardening', 'myths', 'physics', 'short_stories'];
+	function bookCard(w: any, subject: string): Card | null {
+		if (!w.cover_id) return null;
+		return {
+			id: `book:${w.key}`,
+			src: 'books',
+			title: w.title,
+			sub: [w.authors?.map((a: any) => a.name).join(', '), w.first_publish_year].filter(Boolean).join(' · '),
+			body: `shelved under ${subject.replace(/_/g, ' ')}${w.has_fulltext ? ' · free to borrow or read online' : ''}`,
+			img: `https://covers.openlibrary.org/b/id/${w.cover_id}-L.jpg`,
+			imgAlt: `cover of ${w.title}`,
+			link: `https://openlibrary.org${w.key}`,
+			linkText: 'openlibrary.org',
+			more: async () => {
+				const d = await getJSON(`https://openlibrary.org/subjects/${subject}.json?limit=40&offset=${rand(200)}`);
+				return shuffle(d.works.map((x: any) => bookCard(x, subject)).filter(Boolean)).slice(0, 3);
+			},
+		};
+	}
+	async function books() {
+		const subject = pick(SUBJECTS);
+		const d = await getJSON(`https://openlibrary.org/subjects/${subject}.json?limit=20&offset=${rand(300)}`);
+		return shuffle(d.works.map((w: any) => bookCard(w, subject)).filter(Boolean)).slice(0, 6);
+	}
+
+	async function planet() {
+		const d = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson');
+		return shuffle(d.features).slice(0, 4).map((f: any): Card => {
+			const p = f.properties;
+			const ago = Math.round((Date.now() - p.time) / 3600000);
+			const [lon, lat, depth] = f.geometry.coordinates;
+			return {
+				id: `quake:${f.id}`,
+				src: 'planet',
+				title: `magnitude ${p.mag.toFixed(1)}: ${p.place ?? 'somewhere on Earth'}`,
+				sub: `${ago < 1 ? 'under an hour' : ago + ' h'} ago · ${Math.round(depth)} km deep${p.tsunami ? ' · tsunami flag' : ''}`,
+				body: `One of ${d.features.length} earthquakes of magnitude 4.5+ on Earth in the last 24 hours. Each step of magnitude is about 32× more energy, so this one released roughly ${Math.round(10 ** (1.5 * p.mag + 4.8) / 4.184e9).toLocaleString()} kg of TNT's worth.`,
+				link: p.url,
+				linkText: 'usgs.gov',
+				extra: [`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=6/${lat}/${lon}`, 'map'],
+			};
+		});
+	}
+
+	async function fedi() {
+		const d = await getJSON(`https://mastodon.social/api/v1/trends/statuses?limit=20&offset=${rand(20)}`);
+		return d.filter((s: any) => !s.sensitive && !s.spoiler_text).map((s: any): Card => {
+			const m = s.media_attachments?.find((x: any) => x.type === 'image');
+			return {
+				id: `fedi:${s.id}`,
+				src: 'fedi',
+				title: s.account.display_name || s.account.acct,
+				sub: `@${s.account.acct} · ${s.favourites_count} favourites · ${s.reblogs_count} boosts`,
+				body: text(s.content.replace(/<br\s*\/?>|<\/p><p>/g, '\n')),
+				img: m?.preview_url,
+				imgAlt: m?.description ?? '',
+				link: s.url,
+				linkText: 'mastodon',
+			};
+		});
+	}
+
 	let hnIds: number[] = [];
 	async function hn() {
 		if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
@@ -352,7 +495,7 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, photos, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
