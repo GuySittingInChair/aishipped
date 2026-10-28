@@ -22,6 +22,25 @@ const sources = [
 ---
 
 <Base title="the feed · aishipped.lol" description="An endless scroll with no ads, no tracking and an algorithm you set yourself.">
+		<link rel="preconnect" href="https://en.wikipedia.org" crossorigin />
+	<link rel="preconnect" href="https://upload.wikimedia.org" crossorigin />
+	<link rel="preconnect" href="https://api.inaturalist.org" crossorigin />
+	<link rel="preconnect" href="https://inaturalist-open-data.s3.amazonaws.com" crossorigin />
+	<link rel="preconnect" href="https://openaccess-api.clevelandart.org" crossorigin />
+	<link rel="preconnect" href="https://openaccess-cdn.clevelandart.org" crossorigin />
+	<link rel="preconnect" href="https://api.artic.edu" crossorigin />
+	<link rel="preconnect" href="https://www.artic.edu" crossorigin />
+	<link rel="preconnect" href="https://commons.wikimedia.org" crossorigin />
+	<link rel="preconnect" href="https://poetrydb.org" crossorigin />
+	<link rel="preconnect" href="https://archive.org" crossorigin />
+	<link rel="preconnect" href="https://www.loc.gov" crossorigin />
+	<link rel="preconnect" href="https://tile.loc.gov" crossorigin />
+	<link rel="preconnect" href="https://openlibrary.org" crossorigin />
+	<link rel="preconnect" href="https://covers.openlibrary.org" crossorigin />
+	<link rel="preconnect" href="https://images-api.nasa.gov" crossorigin />
+	<link rel="preconnect" href="https://images-assets.nasa.gov" crossorigin />
+	<link rel="preconnect" href="https://mastodon.social" crossorigin />
+	<link rel="preconnect" href="https://earthquake.usgs.gov" crossorigin />
 	<div class="bar" id="bar">
 		<a href="/" class="home">aishipped.lol</a>
 		<span class="stat"><span id="clock">0 min</span> · <span id="count">0</span> cards</span>
@@ -659,7 +678,7 @@ const sources = [
 			const fig = el('figure');
 			if (card.placeholder) fig.style.backgroundImage = `url("${card.placeholder}")`;
 			const img = el('img');
-			img.src = card.img; img.alt = card.imgAlt ?? ''; img.loading = 'lazy'; img.decoding = 'async';
+			img.src = card.img; img.alt = card.imgAlt ?? ''; img.loading = shown < 3 ? 'eager' : 'lazy'; img.decoding = 'async';
 			img.referrerPolicy = 'no-referrer';
 			img.onload = () => fig.classList.add('loaded');
 			img.onerror = () => fig.remove();
@@ -731,7 +750,7 @@ const sources = [
 	}
 
 	let busy = false;
-	async function more(n = 5) {
+	async function more(n = 8) {
 		if (busy) return;
 		busy = true;
 		const sentinel = document.getElementById('sentinel')!;
@@ -747,8 +766,8 @@ const sources = [
 		busy = false;
 		if (nearBottom()) more();
 	}
-	const nearBottom = () => document.getElementById('sentinel')!.getBoundingClientRect().top < innerHeight * 2.5;
-	new IntersectionObserver((e) => { if (e[0].isIntersecting) more(); }, { rootMargin: '1500px 0px' })
+	const nearBottom = () => document.getElementById('sentinel')!.getBoundingClientRect().top < innerHeight * 4;
+	new IntersectionObserver((e) => { if (e[0].isIntersecting) more(); }, { rootMargin: '3000px 0px' })
 		.observe(document.getElementById('sentinel')!);
 
 	setInterval(() => {
@@ -821,8 +840,17 @@ const sources = [
 		else if (e.key === 'Escape') toggle('', false);
 	});
 
+	// leftover cards from last visit make the first screen instant
+	const C_KEY = 'aishipped.feed.cache';
+	for (const c of shuffle(load<Card[]>(C_KEY, []))) SOURCES[c.src]?.queue.push(c);
+	addEventListener('pagehide', () => {
+		const left = Object.values(SOURCES).flatMap((x) => x.queue.filter((c) => !c.draw).slice(0, 4))
+			.map(({ more, draw, ...c }) => c);
+		store(C_KEY, left);
+	});
+
 	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0) refill(id);
-	more(4);
+	more(6);
 </script>
 
 <style>
