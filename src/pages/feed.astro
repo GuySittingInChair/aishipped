@@ -777,8 +777,10 @@ const sources = [
 		busy = true;
 		const sentinel = document.getElementById('sentinel')!;
 		sentinel.textContent = 'loading…';
-		for (let i = 0; i < n; i++) {
-			const next = await nextCard();
+		// start the whole batch at once so slow sources load in parallel; show each as soon as it's ready
+		const batch = Array.from({ length: n }, () => nextCard());
+		for (const pending of batch) {
+			const next = await pending;
 			if (!next) { sentinel.textContent = 'every source is off or not answering. press tune.'; break; }
 			stream.append(render(...next));
 			shown++; sinceBreak++;
