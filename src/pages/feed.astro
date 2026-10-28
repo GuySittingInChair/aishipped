@@ -545,8 +545,12 @@ const sources = [
 	async function nasa() {
 		const q = pick(NASA_Q);
 		const d = await relay('nasa', NASA_Q.length * 3, `https://images-api.nasa.gov/search?${qs({ q, media_type: 'image', page: 1 + rand(3) })}`);
-		return shuffle(d.collection.items.filter((i: any) => i.links?.[0]?.href).map((i: any): Card => {
+		return shuffle(d.collection.items.map(nasaCard).filter(Boolean)).slice(0, 8);
+	}
+	function nasaCard(i: any): Card | null {
+			if (!i.links?.[0]?.href) return null;
 			const m = i.data[0];
+			const words = m.title.replace(/[^\w\s-]/g, ' ').split(/\s+/).filter((w: string) => w.length > 3).slice(0, 3).join(' ');
 			return {
 				id: `nasa:${m.nasa_id}`,
 				src: 'nasa',
@@ -558,8 +562,11 @@ const sources = [
 				link: `https://images.nasa.gov/details/${encodeURIComponent(m.nasa_id)}`,
 				linkText: 'images.nasa.gov',
 				credit: m.photographer || m.secondary_creator || 'NASA',
+				more: words ? async () => {
+					const d = await getJSON(`https://images-api.nasa.gov/search?${qs({ q: words, media_type: 'image' })}`);
+					return shuffle(d.collection.items.filter((x: any) => x.data[0].nasa_id !== m.nasa_id).map(nasaCard).filter(Boolean)).slice(0, 3);
+				} : undefined,
 			};
-		})).slice(0, 8);
 	}
 
 	const AMOUR_Q = ['nude', 'venus', 'lovers', 'kiss', 'bather', 'odalisque', 'embrace', 'cupid', 'eros', 'reclining'];
@@ -644,6 +651,12 @@ const sources = [
 			link: (i.guid ?? `https://www.europeana.eu/item${i.id}`).split('?')[0],
 			linkText: 'europeana.eu',
 			credit: [first(i.dataProvider), /zero|publicdomain|mark/.test(first(i.rights) ?? '') ? 'public domain' : 'open licence'].filter(Boolean).join(' · '),
+			more: async () => {
+				const who = first(i.dcCreator)?.split(',').slice(0, 2).join(',');
+				const query = who ? `who:"${who.replace(/"/g, '')}"` : `DATA_PROVIDER:"${(first(i.dataProvider) ?? '').replace(/"/g, '')}"`;
+				const d = await getJSON(`https://api.europeana.eu/record/v2/search.json?${qs({ query, wskey: 'api2demo', rows: 20, media: 'true', reusability: 'open', qf: 'TYPE:IMAGE' })}`);
+				return shuffle((d.items ?? []).filter((x: any) => x.id !== i.id).map(europeCard).filter(Boolean)).slice(0, 3);
+			},
 		};
 	}
 	async function europe() {
