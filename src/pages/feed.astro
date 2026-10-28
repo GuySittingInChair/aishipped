@@ -270,21 +270,22 @@ const sources = [
 			more: () => wikiQuery({ generator: 'search', gsrsearch: `morelike:${p.title}`, gsrlimit: 4 }, src, host).then((c) => c.slice(0, 3)),
 		};
 	}
-	async function wikiQuery(params: Record<string, string | number>, src: string, host = 'https://en.wikipedia.org') {
-		const d = await getJSON(`${host}/w/api.php?${qs({
-			action: 'query', format: 'json', origin: '*', prop: 'extracts|pageimages|description',
-			exintro: 1, explaintext: 1, exlimit: 20, pithumbsize: small ? 500 : 800, ...params,
-		})}`);
+	const wikiURL = (params: Record<string, string | number>, host: string) => `${host}/w/api.php?${qs({
+		action: 'query', format: 'json', origin: '*', prop: 'extracts|pageimages|description',
+		exintro: 1, explaintext: 1, exlimit: 20, pithumbsize: small ? 500 : 800, ...params,
+	})}`;
+	async function wikiQuery(params: Record<string, string | number>, src: string, host = 'https://en.wikipedia.org', snap?: string) {
+		const d = snap ? await relay(snap, 60, wikiURL(params, host)) : await getJSON(wikiURL(params, host));
 		return Object.values(d.query?.pages ?? {})
 			.sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
 			.map((p: any) => wikiCard(p, src, host));
 	}
 	async function travel() {
-		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 30 }, 'travel', VOYAGE);
+		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 30 }, 'travel', VOYAGE, 'travel');
 		return cards.filter((c) => c.img && (c.body?.length ?? 0) > 150);
 	}
 	async function random() {
-		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random');
+		const cards = await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random', undefined, 'random');
 		return cards.filter((c) => (c.body?.length ?? 0) > 250);
 	}
 

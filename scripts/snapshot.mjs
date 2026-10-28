@@ -4,7 +4,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { SOURCES } from '../api/src.js';
 
-const COUNT = { nature: 24, space: 12, featured: 60, history: 30, art: 30, photos: 30, books: 30, nasa: 20, design: 24, curious: 22, europe: 30 };
+const COUNT = { nature: 24, space: 12, featured: 60, history: 30, art: 30, photos: 30, books: 30, nasa: 20, design: 24, curious: 22, europe: 30, random: 40, travel: 30 };
 const out = new URL('../public/data/', import.meta.url);
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });

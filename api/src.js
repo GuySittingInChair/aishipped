@@ -14,7 +14,12 @@ const WELLCOME_Q = ['botany', 'anatomy', 'astronomy', 'alchemy', 'insects', 'ske
 
 const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'carnival', 'calligraphy', 'mosaic', 'astronomy', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
 
+const wikiRandom = (host) => `${host}/w/api.php?action=query&format=json&generator=random&grnnamespace=0&grnlimit=30&prop=extracts|pageimages|description&exintro=1&explaintext=1&exlimit=20&pithumbsize=800`;
+const wikiTrim = (d) => ({ query: { pages: Object.values(d.query?.pages ?? {}).map((x) => ({ pageid: x.pageid, title: x.title, description: x.description, extract: x.extract, thumbnail: x.thumbnail && { source: x.thumbnail.source } })) } });
+
 export const SOURCES = {
+	random: { pages: 60, ttl: 3600, url: () => wikiRandom('https://en.wikipedia.org'), trim: wikiTrim },
+	travel: { pages: 60, ttl: 3600, url: () => wikiRandom('https://en.wikivoyage.org'), trim: wikiTrim },
 	europe: {
 		pages: EU_Q.length * 4,
 		ttl: 86400 * 7,
