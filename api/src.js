@@ -1,6 +1,28 @@
 // Edge-cached relay for the feed's slowest sources (iNaturalist, NASA APOD).
 // Each (s, p) pair is one fixed batch, so the CDN can serve it to everyone instantly.
+const DAY0 = Date.UTC(2016, 0, 1);
+const ymd = (p) => new Date(DAY0 + p * 864e5).toISOString().slice(0, 10);
+const page = (x) => x && { title: x.title, titles: x.titles && { normalized: x.titles.normalized }, description: x.description, extract: x.extract, pageid: x.pageid, thumbnail: x.thumbnail && { source: x.thumbnail.source }, content_urls: x.content_urls && { desktop: { page: x.content_urls.desktop?.page } } };
+
 export const SOURCES = {
+	featured: {
+		pages: 3900,
+		ttl: 86400 * 30,
+		url: (p) => `https://en.wikipedia.org/api/rest_v1/feed/featured/${ymd(p).replace(/-/g, '/')}`,
+		trim: (d, p) => ({
+			date: ymd(p),
+			tfa: page(d.tfa),
+			image: d.image && { title: d.image.title, thumbnail: d.image.thumbnail, file_page: d.image.file_page, description: d.image.description, artist: d.image.artist && { text: d.image.artist.text }, license: d.image.license && { type: d.image.license.type } },
+			onthisday: d.onthisday?.map((e) => ({ year: e.year, text: e.text, pages: e.pages?.slice(0, 3).map(page) })),
+			dyk: d.dyk?.map((y) => ({ html: y.html, text: y.text })),
+		}),
+	},
+	history: {
+		pages: 2000,
+		ttl: 86400 * 7,
+		url: (p) => `https://www.loc.gov/photos/?fo=json&c=25&sp=${p + 1}&fa=online-format:image`,
+		trim: (d) => ({ results: d.results.map((r) => ({ id: r.id, title: r.title, date: r.date, location: r.location, description: r.description, image_url: r.image_url, url: r.url })) }),
+	},
 	nature: {
 		pages: 190,
 		ttl: 86400,
@@ -34,7 +56,7 @@ async function relay(request) {
 	if (!src || !Number.isInteger(p) || p < 0 || p >= src.pages) return new Response('bad request', { status: 400 });
 	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped.lol feed' }, signal: AbortSignal.timeout(25000) });
 	if (!r.ok) return new Response('upstream error', { status: 502, headers: { 'Cache-Control': 'no-store' } });
-	const body = src.trim ? JSON.stringify(src.trim(await r.json())) : await r.text();
+	const body = src.trim ? JSON.stringify(src.trim(await r.json(), p)) : await r.text();
 	return new Response(body, {
 		headers: {
 			'Content-Type': 'application/json',

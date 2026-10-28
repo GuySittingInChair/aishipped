@@ -133,9 +133,14 @@ const sources = [
 	};
 	// slow sources go through our CDN cache first, then straight to the source if that fails
 	// fastest first: a build-time snapshot on the CDN, then the cached relay, then the source itself
-	const snaps: Record<string, number> = { nature: 40, space: 12 };
+	let snaps: Promise<Record<string, number>> = getJSON('/data/manifest.json', 3000).catch(() => ({}));
+	const snapshot = async (s: string) => {
+		const n = (await snaps)[s];
+		if (!n) throw new Error('no snapshot');
+		return getJSON(`/data/${s}-${rand(n)}.json`, 4000);
+	};
 	const relay = (s: string, pages: number, direct: string) =>
-		getJSON(`/data/${s}-${rand(snaps[s])}.json`, 4000)
+		snapshot(s)
 			.catch(() => getJSON(`/api/src?s=${s}&p=${rand(pages)}`, 5000))
 			.catch(() => getJSON(direct));
 	const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
@@ -251,9 +256,10 @@ const sources = [
 
 	async function featured() {
 		const start = Date.UTC(2016, 0, 1);
-		const day = new Date(start + rand(Date.now() - start - 864e5));
-		const ymd = day.toISOString().slice(0, 10);
-		const d = await getJSON(`https://en.wikipedia.org/api/rest_v1/feed/featured/${ymd.replace(/-/g, '/')}`);
+		const p = rand(Math.min(3900, Math.floor((Date.now() - start) / 864e5) - 1));
+		const direct = `https://en.wikipedia.org/api/rest_v1/feed/featured/${new Date(start + p * 864e5).toISOString().slice(0, 10).replace(/-/g, '/')}`;
+		const d = await relay('featured', 3900, direct);
+		const day = new Date(d.date ?? start + p * 864e5);
 		const out: Card[] = [];
 		const nice = day.toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 		if (d.tfa) {
@@ -342,7 +348,7 @@ const sources = [
 	}
 	const short = (p: any) => +p.linecount >= 4 && +p.linecount <= 40;
 	async function poems() {
-		const d = await getJSON('https://poetrydb.org/random/20/title,author,lines,linecount');
+		const d = await snapshot('poems').catch(() => getJSON('https://poetrydb.org/random/20/title,author,lines,linecount'));
 		return d.filter(short).map(poemCard);
 	}
 
@@ -375,7 +381,7 @@ const sources = [
 	}
 
 	async function history() {
-		const d = await getJSON(`https://www.loc.gov/photos/?${qs({ fo: 'json', c: 25, sp: 1 + rand(2000), fa: 'online-format:image' })}`);
+		const d = await relay('history', 2000, `https://www.loc.gov/photos/?${qs({ fo: 'json', c: 25, sp: 1 + rand(2000), fa: 'online-format:image' })}`);
 		return shuffle(d.results.map((r: any): Card | null => {
 			const img = [...(r.image_url ?? [])].reverse().find((u: string) => /\.(jpg|gif|png)/.test(u));
 			if (!img || !r.title) return null;
