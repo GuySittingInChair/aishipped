@@ -4,7 +4,44 @@ const DAY0 = Date.UTC(2016, 0, 1);
 const ymd = (p) => new Date(DAY0 + p * 864e5).toISOString().slice(0, 10);
 const page = (x) => x && { title: x.title, titles: x.titles && { normalized: x.titles.normalized }, description: x.description, extract: x.extract, pageid: x.pageid, thumbnail: x.thumbnail && { source: x.thumbnail.source }, content_urls: x.content_urls && { desktop: { page: x.content_urls.desktop?.page } } };
 
+const PREFIXES = 'ABCDEFGHIJKLMNOPRSTUVWZ'.split('').flatMap((a) => 'aeioulnr'.split('').map((b) => a + b));
+const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'poetry', 'philosophy', 'adventure', 'astronomy', 'animals', 'cooking', 'mathematics', 'music', 'art', 'travel', 'humor', 'biography', 'psychology', 'ocean', 'architecture', 'gardening', 'myths', 'physics', 'short_stories'];
+const NASA_Q = ['nebula', 'galaxy', 'aurora', 'saturn', 'jupiter', 'mars surface', 'apollo', 'space shuttle launch', 'earth from orbit', 'hubble', 'webb', 'astronaut spacewalk', 'moon', 'comet', 'solar flare', 'hurricane from space', 'iss', 'rover', 'x-15', 'wind tunnel', 'supernova', 'star cluster'];
+const meta = (m = {}) => Object.fromEntries(['ImageDescription', 'DateTimeOriginal', 'Artist', 'LicenseShortName'].filter((k) => m[k]).map((k) => [k, { value: m[k].value }]));
+
 export const SOURCES = {
+	art: {
+		pages: 2050,
+		ttl: 86400 * 7,
+		url: (p) => `https://openaccess-api.clevelandart.org/api/artworks/?cc0=1&has_image=1&limit=20&skip=${p * 20}`,
+		trim: (d) => ({ data: d.data.map((a) => ({
+			id: a.id, title: a.title, url: a.url, creation_date: a.creation_date, technique: a.technique,
+			wall_description: a.wall_description, description: a.description, fun_fact: a.fun_fact,
+			images: a.images?.web && { web: { url: a.images.web.url } },
+			creators: a.creators?.slice(0, 1).map((c) => ({ id: c.id, description: c.description })),
+		})) }),
+	},
+	photos: {
+		pages: PREFIXES.length,
+		ttl: 86400 * 7,
+		url: (p) => `https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=categorymembers&gcmtitle=Category:Featured_pictures_on_Wikimedia_Commons&gcmtype=file&gcmlimit=20&gcmstartsortkeyprefix=${PREFIXES[p]}&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=800`,
+		trim: (d) => ({ query: { pages: Object.values(d.query?.pages ?? {}).map((x) => ({
+			pageid: x.pageid, title: x.title,
+			imageinfo: x.imageinfo?.slice(0, 1).map((i) => ({ thumburl: i.thumburl, descriptionurl: i.descriptionurl, extmetadata: meta(i.extmetadata) })),
+		})) } }),
+	},
+	books: {
+		pages: SUBJECTS.length * 15,
+		ttl: 86400 * 7,
+		url: (p) => `https://openlibrary.org/subjects/${SUBJECTS[p % SUBJECTS.length]}.json?limit=20&offset=${Math.floor(p / SUBJECTS.length) * 20}`,
+		trim: (d, p) => ({ subject: SUBJECTS[p % SUBJECTS.length], works: d.works.map((w) => ({ key: w.key, title: w.title, cover_id: w.cover_id, authors: w.authors?.map((a) => ({ name: a.name })), first_publish_year: w.first_publish_year, has_fulltext: w.has_fulltext })) }),
+	},
+	nasa: {
+		pages: NASA_Q.length * 3,
+		ttl: 86400 * 7,
+		url: (p) => `https://images-api.nasa.gov/search?q=${encodeURIComponent(NASA_Q[p % NASA_Q.length])}&media_type=image&page=${1 + Math.floor(p / NASA_Q.length)}`,
+		trim: (d) => ({ collection: { items: d.collection.items.slice(0, 30).map((i) => ({ links: i.links?.slice(0, 1).map((l) => ({ href: l.href })), data: i.data.slice(0, 1).map((m) => ({ nasa_id: m.nasa_id, title: m.title, date_created: m.date_created, center: m.center, description: m.description?.slice(0, 1200), photographer: m.photographer, secondary_creator: m.secondary_creator })) })) } }),
+	},
 	featured: {
 		pages: 3900,
 		ttl: 86400 * 30,
