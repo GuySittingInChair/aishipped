@@ -9,7 +9,22 @@ const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'p
 const NASA_Q = ['nebula', 'galaxy', 'aurora', 'saturn', 'jupiter', 'mars surface', 'apollo', 'space shuttle launch', 'earth from orbit', 'hubble', 'webb', 'astronaut spacewalk', 'moon', 'comet', 'solar flare', 'hurricane from space', 'iss', 'rover', 'x-15', 'wind tunnel', 'supernova', 'star cluster'];
 const meta = (m = {}) => Object.fromEntries(['ImageDescription', 'DateTimeOriginal', 'Artist', 'LicenseShortName'].filter((k) => m[k]).map((k) => [k, { value: m[k].value }]));
 
+const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'chair', 'tapestry', 'mask', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
+const WELLCOME_Q = ['botany', 'anatomy', 'astronomy', 'alchemy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'magic', 'moon', 'ocean', 'birds'];
+
 export const SOURCES = {
+	design: {
+		pages: VAM_Q.length * 2,
+		ttl: 86400 * 7,
+		url: (p) => `https://api.vam.ac.uk/v2/objects/search?q=${VAM_Q[p % VAM_Q.length]}&images_exist=1&page_size=20&page=${1 + Math.floor(p / VAM_Q.length)}`,
+		trim: (d, p) => ({ q: VAM_Q[p % VAM_Q.length], records: d.records.map((r) => ({ systemNumber: r.systemNumber, objectType: r.objectType, _primaryTitle: r._primaryTitle, _primaryMaker: r._primaryMaker && { name: r._primaryMaker.name }, _primaryPlace: r._primaryPlace, _primaryDate: r._primaryDate, _images: { _iiif_image_base_url: r._images?._iiif_image_base_url } })) }),
+	},
+	curious: {
+		pages: WELLCOME_Q.length,
+		ttl: 86400 * 7,
+		url: (p) => `https://api.wellcomecollection.org/catalogue/v2/images?query=${WELLCOME_Q[p]}&pageSize=40&locations.license=pdm,cc-0,cc-by`,
+		trim: (d, p) => ({ q: WELLCOME_Q[p], results: d.results.map((r) => ({ id: r.id, source: r.source, locations: r.locations?.filter((l) => /info\.json$/.test(l.url)).slice(0, 1).map((l) => ({ url: l.url, license: { label: l.license?.label } })) })) }),
+	},
 	art: {
 		pages: 2050,
 		ttl: 86400 * 7,

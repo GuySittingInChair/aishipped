@@ -584,8 +584,9 @@ const sources = [
 		};
 	}
 	async function design() {
-		const q = pick(VAM_Q);
-		const d = await getJSON(`https://api.vam.ac.uk/v2/objects/search?${qs({ q, images_exist: 1, page_size: 20, page: 1 + rand(20) })}`);
+		let q = pick(VAM_Q);
+		const d = await relay('design', VAM_Q.length * 2, `https://api.vam.ac.uk/v2/objects/search?${qs({ q, images_exist: 1, page_size: 20, page: 1 + rand(20) })}`);
+		q = d.q ?? q;
 		return shuffle(d.records.map((r: any) => vamCard(r, q)).filter(Boolean));
 	}
 
@@ -605,14 +606,16 @@ const sources = [
 			linkText: 'wellcomecollection.org',
 			credit: `Wellcome Collection · ${loc.license?.label ?? ''}`,
 			more: async () => {
-				const d = await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ query: q, pageSize: 20, page: 1 + rand(20), 'locations.license': 'pdm,cc-0,cc-by' })}`);
+				const d = await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ query: q, pageSize: 20, page: 1 + rand(3), 'locations.license': 'pdm,cc-0,cc-by' })}`);
 				return shuffle(d.results.filter((x: any) => x.id !== r.id).map((x: any) => wellcomeCard(x, q)).filter(Boolean)).slice(0, 3);
 			},
 		};
 	}
 	async function curious() {
-		const q = pick(WELLCOME_Q);
-		const d = await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ query: q, pageSize: 20, page: 1 + rand(15), 'locations.license': 'pdm,cc-0,cc-by' })}`);
+		let q = pick(WELLCOME_Q);
+		// page 1 always exists; deeper pages only for big topics
+		const d = await relay('curious', WELLCOME_Q.length, `https://api.wellcomecollection.org/catalogue/v2/images?${qs({ query: q, pageSize: 20, page: 1 + rand(3), 'locations.license': 'pdm,cc-0,cc-by' })}`);
+		q = d.q ?? q;
 		return shuffle(d.results.map((r: any) => wellcomeCard(r, q)).filter(Boolean));
 	}
 
