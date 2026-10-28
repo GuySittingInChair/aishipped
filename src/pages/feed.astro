@@ -30,6 +30,8 @@ const sources = [
 	['films', 'old films', 'public-domain films from the Prelinger Archives: ads, newsreels, how-to films, 1910s–1970s. tap to play', 2],
 	['today', 'today', "what the world is reading on Wikipedia right now, and today's news", 1],
 	['nasa', 'NASA archive', "pictures from NASA's image library: missions, telescopes, launches", 2],
+	['design', 'design', 'textiles, posters, ceramics, jewellery and dress from the V&A in London', 2],
+	['curious', 'curiosities', 'old medical, botanical and scientific images from the Wellcome Collection', 2],
 	['amour', 'amour', 'off by default: love poems and the nude in art, from Cleveland museum and PoetryDB', 0],
 	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
 ] as const;
@@ -561,6 +563,59 @@ const sources = [
 		return shuffle(d.data.map(cmaCard).filter(Boolean).map((c: Card) => ({ ...c, src: 'amour' })));
 	}
 
+	const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'chair', 'tapestry', 'mask', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
+	function vamCard(r: any, q: string): Card | null {
+		const base = r._images?._iiif_image_base_url;
+		if (!base) return null;
+		return {
+			id: `vam:${r.systemNumber}`,
+			src: 'design',
+			title: r._primaryTitle || r.objectType,
+			sub: [r.objectType, r._primaryMaker?.name, r._primaryPlace, r._primaryDate].filter(Boolean).join(' · '),
+			img: `${base}full/!${small ? 600 : 900},${small ? 600 : 900}/0/default.jpg`,
+			imgAlt: r._primaryTitle || r.objectType,
+			link: `https://collections.vam.ac.uk/item/${r.systemNumber}/`,
+			linkText: 'vam.ac.uk',
+			credit: 'Victoria and Albert Museum, London',
+			more: async () => {
+				const d = await getJSON(`https://api.vam.ac.uk/v2/objects/search?${qs({ q: r.objectType || q, images_exist: 1, page_size: 20, page: 1 + rand(5) })}`);
+				return shuffle(d.records.filter((x: any) => x.systemNumber !== r.systemNumber).map((x: any) => vamCard(x, q)).filter(Boolean)).slice(0, 3);
+			},
+		};
+	}
+	async function design() {
+		const q = pick(VAM_Q);
+		const d = await getJSON(`https://api.vam.ac.uk/v2/objects/search?${qs({ q, images_exist: 1, page_size: 20, page: 1 + rand(20) })}`);
+		return shuffle(d.records.map((r: any) => vamCard(r, q)).filter(Boolean));
+	}
+
+	const WELLCOME_Q = ['botany', 'anatomy', 'astronomy', 'alchemy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'magic', 'moon', 'ocean', 'birds'];
+	function wellcomeCard(r: any, q: string): Card | null {
+		const loc = r.locations?.find((l: any) => /info\.json$/.test(l.url));
+		if (!loc || !r.source?.title) return null;
+		const [title, ...rest] = r.source.title.split(/\.\s/);
+		return {
+			id: `wellcome:${r.id}`,
+			src: 'curious',
+			title: title.slice(0, 160),
+			body: rest.join('. ') || undefined,
+			img: loc.url.replace('/info.json', `/full/!${small ? 600 : 900},${small ? 600 : 900}/0/default.jpg`),
+			imgAlt: r.source.title.slice(0, 200),
+			link: `https://wellcomecollection.org/works/${r.source.id}`,
+			linkText: 'wellcomecollection.org',
+			credit: `Wellcome Collection · ${loc.license?.label ?? ''}`,
+			more: async () => {
+				const d = await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ query: q, pageSize: 20, page: 1 + rand(20), 'locations.license': 'pdm,cc-0,cc-by' })}`);
+				return shuffle(d.results.filter((x: any) => x.id !== r.id).map((x: any) => wellcomeCard(x, q)).filter(Boolean)).slice(0, 3);
+			},
+		};
+	}
+	async function curious() {
+		const q = pick(WELLCOME_Q);
+		const d = await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ query: q, pageSize: 20, page: 1 + rand(15), 'locations.license': 'pdm,cc-0,cc-by' })}`);
+		return shuffle(d.results.map((r: any) => wellcomeCard(r, q)).filter(Boolean));
+	}
+
 	let hnIds: number[] = [];
 	async function hn() {
 		if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
@@ -626,7 +681,7 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, films, today, nasa, photos, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, films, today, nasa, photos, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
