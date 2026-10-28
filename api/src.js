@@ -4,6 +4,14 @@ const SOURCES = {
 	nature: {
 		pages: 190,
 		ttl: 86400,
+		// keep only what the cards use: ~1 MB down to ~30 KB
+		trim: (d) => ({
+			results: d.results.map((o) => ({
+				id: o.id, uri: o.uri, place_guess: o.place_guess, observed_on: o.observed_on,
+				taxon: o.taxon && { id: o.taxon.id, name: o.taxon.name, preferred_common_name: o.taxon.preferred_common_name, wikipedia_url: o.taxon.wikipedia_url },
+				photos: o.photos?.slice(0, 1).map((ph) => ({ url: ph.url, attribution: ph.attribution })),
+			})),
+		}),
 		url: (p) => `https://api.inaturalist.org/v1/observations?quality_grade=research&photos=true&order_by=votes&per_page=50&page=${p + 1}`,
 	},
 	space: {
@@ -20,11 +28,13 @@ export async function GET(request) {
 	if (!src || !Number.isInteger(p) || p < 0 || p >= src.pages) return new Response('bad request', { status: 400 });
 	const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped.lol feed' } });
 	if (!r.ok) return new Response('upstream error', { status: 502, headers: { 'Cache-Control': 'no-store' } });
-	return new Response(await r.text(), {
+	const body = src.trim ? JSON.stringify(src.trim(await r.json())) : await r.text();
+	return new Response(body, {
 		headers: {
 			'Content-Type': 'application/json',
 			'Access-Control-Allow-Origin': '*',
-			'Cache-Control': `public, max-age=300, s-maxage=${src.ttl}, stale-while-revalidate=${src.ttl * 7}`,
+			'Cache-Control': 'public, max-age=300',
+			'Vercel-CDN-Cache-Control': `max-age=${src.ttl}, stale-while-revalidate=${src.ttl * 7}`,
 		},
 	});
 }
