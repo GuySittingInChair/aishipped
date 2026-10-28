@@ -35,7 +35,7 @@ const sources = [
 	['europe', 'europe’s museums', 'open-licensed images from thousands of European museums, libraries and archives via Europeana', 2],
 	['travel', 'travel', 'a random place in the world, from the Wikivoyage travel guide', 2],
 	['amour', 'amour', 'off by default: love poems and the nude in art, from Cleveland museum and PoetryDB', 0],
-	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
+	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads. off by default: mostly tech-industry talk', 0],
 ] as const;
 ---
 
@@ -103,6 +103,12 @@ const sources = [
 			<input type="range" min="10" max="60" step="5" value="25" id="chapterLen" />
 			<span class="desc">cards between each stopping point</span>
 		</label>
+		<label class="slider">
+			<span class="name">never show</span>
+			<textarea id="blocklist" rows="8" spellcheck="false"></textarea>
+			<span class="desc">One word or phrase per line, lines starting with # are notes. Any card whose text mentions one is dropped before you see it, including "more like this". It reads text only: it can't see what is in a picture.</span>
+		</label>
+		<p class="row"><button id="resetBlock">restore default list</button></p>
 		<p class="lede audit">
 			What decides the order: a random draw using the weights above, nothing else. No model, no profile, no history of what
 			you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
@@ -173,6 +179,18 @@ const sources = [
 			.catch(() => getJSON(direct));
 	const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body.textContent?.trim() ?? '';
 	const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])).toString();
+
+	// ---- never show -----------------------------------------------------------
+
+	const B_KEY = 'aishipped.feed.block';
+	const DEFAULT_BLOCK = `# big tech\nbig tech\ngoogle\nalphabet inc\nyoutube\napple inc\niphone\nipad\nmacbook\nmicrosoft\namazon.com\namazon web services\nalexa\njeff bezos\nbezos\nmeta platforms\nfacebook\ninstagram\nwhatsapp\nzuckerberg\ntwitter\ntweet\nx.com\ntesla\nopenai\nchatgpt\ngpt\nanthropic\ndeepmind\ngemini\nnvidia\nnetflix\nuber\nairbnb\ntiktok\nbytedance\noracle\nibm\nintel\npalantir\nsamsung\nhuawei\nalibaba\ntencent\nsilicon valley\nstartup\ny combinator\nsam altman\naltman\npeter thiel\nbill gates\nandreessen\nartificial intelligence\nmachine learning\nai\nllm\nchatbot\nalgorithm\ncrypto\ncryptocurrency\nbitcoin\nblockchain\nnft\nsmartphone\napp store\n# musk\nmusk\nelon\nmusk ox\nmuskox\novibos\nmuskrat\nspacex\nstarlink\nneuralink\nxai\nstarship\n# yews\nyew\nyews\ntaxus\n# parasites\nparasite\nparasitic\nparasitism\nparasitoid\ntapeworm\nhookworm\nroundworm\nfluke\nleech\ntick\nlouse\nlice\nflea\nmite\nmistletoe\ndodder\nbotfly\nlamprey\ncuckoo\nrafflesia\ncordyceps\ntoxoplasma\nmalaria\nplasmodium\nheartworm\n# walrus\nwalrus\nodobenus\n# red hair\nred hair\nred-haired\nredhead\nred-headed\nredheaded\nginger hair\nginger-haired\nauburn hair\ntitian hair\nstrawberry blonde\n# california\ncalifornia\ncalifornian\nlos angeles\nl.a.\nhollywood\nsan francisco\nbay area\nsan diego\nsan jose\nsacramento\noakland\nberkeley\nmalibu\nbeverly hills\ncupertino\nmountain view\nmenlo park\npalo alto\n# chairs\nchair\narmchair\nrocking chair\nhighchair\nstool\nthrone\n# religion\nreligion\nreligious\ngod\ngoddess\ndeity\ndeities\ndivine\nsacred\nholy\nchurch\ncathedral\nchapel\nabbey\nmonastery\nconvent\ntemple\nshrine\nmosque\nsynagogue\nbible\nbiblical\ngospel\nscripture\nchrist\nchristian\nchristianity\njesus\nmadonna\nvirgin mary\nmary magdalene\nsaint\napostle\nprophet\npope\npapal\nbishop\narchbishop\npriest\nmonk\nnun\ncardinal\nvicar\nclergy\nislam\nislamic\nmuslim\nquran\nkoran\nhindu\nhinduism\nbuddha\nbuddhist\nbuddhism\njewish\njudaism\ntorah\nrabbi\nsikh\nshinto\ntaoist\nprayer\npray\nworship\nangel\ndemon\ndevil\nsatan\nheaven\nhell\ncrucifix\ncrucifixion\nbaptism\nresurrection\nnativity\nannunciation\neaster\nchristmas\nramadan\ndiwali\nhanukkah\nmyth\nmythology\nmythological\nvenus\ncupid\neros\nzeus\napollo\njupiter\njuno\nathena\nodin\nthor\npagan\nritual\nidol\nwitch\nwitchcraft\noccult\nspiritual\nsoul\nafterlife\nsermon\nhymn\npsalm\nmissionary\npilgrim\npilgrimage\nreliquary\naltarpiece\naltar\nicon\ntheology\n# artificial intelligence\nartificial intelligence\na.i.\nagi\nneural network\ndeep learning\nlarge language model\ngenerative\ngenai\nrobot\nrobotics\nautomation\ncopilot\nmidjourney\nstable diffusion\ndall-e\nsora\nclaude\nllama\nmistral\nhugging face\nsuperintelligence\nsingularity\n# trump\ntrump\ntrumps\ndonald\nmaga\nmar-a-lago\nmelania\nivanka\njared kushner\nmike pence\njd vance\nvance\n# stars\nstar\nstarry\nstellar\nstarlight\nstar stuff\nnebula\ngalaxy\ngalaxies\nsupernova\nconstellation\npulsar\nquasar\nmilky way\nastronomy\nastronomer\nastronomical\nastrophysics\ncosmos\nzodiac\nastrology\n# russia\nrussia\nrussian\nmoscow\nsoviet\nussr\nkremlin\nputin\nsiberia\nst petersburg\nsaint petersburg\nleningrad\ntsar\nczar\nromanov\nbolshevik`;
+	let blockRe: RegExp | null = null;
+	function setBlock(list: string) {
+		const terms = list.split('\n').map((t) => t.trim().toLowerCase()).filter((t) => t && !t.startsWith('#'));
+		const esc = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s-]+'));
+		blockRe = esc.length ? new RegExp(`(?:^|[^\\p{L}])(?:${esc.join('|')})(?:s|es)?(?![\\p{L}])`, 'iu') : null;
+	}
+	const blocked = (c: Card) => !!blockRe && blockRe.test([c.title, c.sub, c.body, c.imgAlt, c.credit, c.extra?.[1]].filter(Boolean).join(' \n '));
 
 	// ---- sources ------------------------------------------------------------
 
@@ -442,7 +460,7 @@ const sources = [
 		}).filter(Boolean));
 	}
 
-	const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'poetry', 'philosophy', 'adventure', 'astronomy', 'animals', 'cooking', 'mathematics', 'music', 'art', 'travel', 'humor', 'biography', 'psychology', 'ocean', 'architecture', 'gardening', 'myths', 'physics', 'short_stories'];
+	const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'poetry', 'philosophy', 'adventure', 'animals', 'cooking', 'mathematics', 'music', 'art', 'travel', 'humor', 'biography', 'psychology', 'ocean', 'architecture', 'gardening', 'physics', 'short_stories'];
 	function bookCard(w: any, subject: string): Card | null {
 		if (!w.cover_id) return null;
 		return {
@@ -559,7 +577,7 @@ const sources = [
 		return shuffle([...read, ...news]);
 	}
 
-	const NASA_Q = ['nebula', 'galaxy', 'aurora', 'saturn', 'jupiter', 'mars surface', 'apollo', 'space shuttle launch', 'earth from orbit', 'hubble', 'webb', 'astronaut spacewalk', 'moon', 'comet', 'solar flare', 'hurricane from space', 'iss', 'rover', 'x-15', 'wind tunnel', 'supernova', 'star cluster'];
+	const NASA_Q = ['aurora', 'saturn', 'mars surface', 'space shuttle launch', 'earth from orbit', 'astronaut spacewalk', 'moon', 'comet', 'hurricane from space', 'iss', 'rover', 'wind tunnel'];
 	async function nasa() {
 		const q = pick(NASA_Q);
 		const d = await relay('nasa', NASA_Q.length * 3, `https://images-api.nasa.gov/search?${qs({ q, media_type: 'image', page: 1 + rand(3) })}`);
@@ -587,7 +605,7 @@ const sources = [
 			};
 	}
 
-	const AMOUR_Q = ['nude', 'venus', 'lovers', 'kiss', 'bather', 'odalisque', 'embrace', 'cupid', 'eros', 'reclining'];
+	const AMOUR_Q = ['nude', 'lovers', 'kiss', 'bather', 'odalisque', 'embrace', 'reclining'];
 	async function amour() {
 		if (Math.random() < 0.4) {
 			const d = await getJSON(`https://poetrydb.org/title/${pick(['love', 'kiss', 'desire', 'beloved', 'night', 'heart'])}/title,author,lines,linecount`);
@@ -597,7 +615,7 @@ const sources = [
 		return shuffle(d.data.map(cmaCard).filter(Boolean).map((c: Card) => ({ ...c, src: 'amour' })));
 	}
 
-	const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'chair', 'tapestry', 'mask', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
+	const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'tapestry', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
 	function vamCard(r: any, q: string): Card | null {
 		const base = r._images?._iiif_image_base_url;
 		if (!base) return null;
@@ -624,7 +642,7 @@ const sources = [
 		return shuffle(d.records.map((r: any) => vamCard(r, q)).filter(Boolean));
 	}
 
-	const WELLCOME_Q = ['botany', 'anatomy', 'astronomy', 'alchemy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'magic', 'moon', 'ocean', 'birds'];
+	const WELLCOME_Q = ['botany', 'anatomy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'moon', 'ocean', 'birds'];
 	function wellcomeCard(r: any, q: string): Card | null {
 		const loc = r.locations?.find((l: any) => /info\.json$/.test(l.url));
 		if (!loc || !r.source?.title) return null;
@@ -653,7 +671,7 @@ const sources = [
 		return shuffle(d.results.map((r: any) => wellcomeCard(r, q)).filter(Boolean));
 	}
 
-	const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'carnival', 'calligraphy', 'mosaic', 'astronomy', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
+	const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'calligraphy', 'mosaic', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
 	const first = (x: unknown) => (Array.isArray(x) ? x[0] : x) as string | undefined;
 	function europeCard(i: any): Card | null {
 		const preview = first(i.edmPreview);
@@ -759,7 +777,7 @@ const sources = [
 	function refill(id: string) {
 		const s = SOURCES[id];
 		s.pending ??= s.fill()
-			.then((cards) => { s.queue.push(...cards.filter((c) => !seen.has(c.id))); s.fails = 0; })
+			.then((cards) => { s.queue.push(...cards.filter((c) => !seen.has(c.id) && !blocked(c))); s.fails = 0; })
 			.catch(() => { s.fails++; })
 			.finally(() => { s.pending = undefined; });
 		return s.pending;
@@ -780,6 +798,18 @@ const sources = [
 	}
 	function saveWeights() { store(W_KEY, { ...weights(), chapter: +chapterInput.value }); syncOutputs(); }
 	for (const s of [...sliders, chapterInput]) s.addEventListener('input', saveWeights);
+	const blockBox = document.getElementById('blocklist') as HTMLTextAreaElement;
+	blockBox.value = load<string>(B_KEY, DEFAULT_BLOCK);
+	setBlock(blockBox.value);
+	const applyBlock = () => {
+		store(B_KEY, blockBox.value);
+		setBlock(blockBox.value);
+		// drop anything already on screen or queued that now matches
+		for (const s of Object.values(SOURCES)) s.queue = s.queue.filter((c) => !blocked(c));
+		for (const el of stream.querySelectorAll<HTMLElement>('.card')) if (el.dataset.blockText && blockRe?.test(el.dataset.blockText)) el.remove();
+	};
+	blockBox.addEventListener('change', applyBlock);
+	document.getElementById('resetBlock')!.addEventListener('click', () => { blockBox.value = DEFAULT_BLOCK; applyBlock(); });
 	document.getElementById('forgetSeen')!.addEventListener('click', (e) => {
 		seen.clear(); remember();
 		(e.target as HTMLButtonElement).textContent = 'forgotten';
@@ -818,7 +848,7 @@ const sources = [
 				if (!s.queue.length) continue;
 			}
 			const card = s.queue.shift();
-			if (card && !seen.has(card.id)) return [card, c.why];
+			if (card && !seen.has(card.id) && !blocked(card)) return [card, c.why];
 			if (!s.queue.length) tried.add(c.id);
 		}
 	}
@@ -852,6 +882,7 @@ const sources = [
 		seen.add(card.id);
 		const art = el('article', `card src-${card.src}`);
 		art.dataset.id = card.id;
+		art.dataset.blockText = [card.title, card.sub, card.body, card.imgAlt, card.credit].filter(Boolean).join(' \n ');
 		art.tabIndex = -1;
 		art.append(el('p', 'why', why));
 
@@ -903,7 +934,7 @@ const sources = [
 			more.addEventListener('click', async () => {
 				more.disabled = true; more.textContent = '↳ finding…';
 				try {
-					const cards = (await card.more!()).filter((c) => !seen.has(c.id));
+					const cards = (await card.more!()).filter((c) => !seen.has(c.id) && !blocked(c));
 					let after: Element = art;
 					for (const c of cards) {
 						const n = render(c, `you asked for more like "${card.title.slice(0, 60)}"`);
@@ -1137,6 +1168,7 @@ const sources = [
 	.slider output { color: var(--amber); }
 	.slider .desc { color: var(--dim); font-size: 0.72rem; }
 	.audit { font-size: 0.75rem; margin: 4px 0 8px; }
+	#blocklist { width: 100%; font: 0.78rem/1.4 var(--mono); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px; resize: vertical; }
 	.slider input { accent-color: var(--green); width: 100%; }
 	.row { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 0; }
 	#savedList { list-style: none; padding: 0; margin: 0; font-size: 0.85rem; }

@@ -5,14 +5,14 @@ const ymd = (p) => new Date(DAY0 + p * 864e5).toISOString().slice(0, 10);
 const page = (x) => x && { title: x.title, titles: x.titles && { normalized: x.titles.normalized }, description: x.description, extract: x.extract, pageid: x.pageid, thumbnail: x.thumbnail && { source: x.thumbnail.source }, content_urls: x.content_urls && { desktop: { page: x.content_urls.desktop?.page } } };
 
 const PREFIXES = 'ABCDEFGHIJKLMNOPRSTUVWZ'.split('').flatMap((a) => 'aeioulnr'.split('').map((b) => a + b));
-const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'poetry', 'philosophy', 'adventure', 'astronomy', 'animals', 'cooking', 'mathematics', 'music', 'art', 'travel', 'humor', 'biography', 'psychology', 'ocean', 'architecture', 'gardening', 'myths', 'physics', 'short_stories'];
-const NASA_Q = ['nebula', 'galaxy', 'aurora', 'saturn', 'jupiter', 'mars surface', 'apollo', 'space shuttle launch', 'earth from orbit', 'hubble', 'webb', 'astronaut spacewalk', 'moon', 'comet', 'solar flare', 'hurricane from space', 'iss', 'rover', 'x-15', 'wind tunnel', 'supernova', 'star cluster'];
+const SUBJECTS = ['love', 'science_fiction', 'fantasy', 'mystery', 'history', 'poetry', 'philosophy', 'adventure', 'animals', 'cooking', 'mathematics', 'music', 'art', 'travel', 'humor', 'biography', 'psychology', 'ocean', 'architecture', 'gardening', 'physics', 'short_stories'];
+const NASA_Q = ['aurora', 'saturn', 'mars surface', 'space shuttle launch', 'earth from orbit', 'astronaut spacewalk', 'moon', 'comet', 'hurricane from space', 'iss', 'rover', 'wind tunnel'];
 const meta = (m = {}) => Object.fromEntries(['ImageDescription', 'DateTimeOriginal', 'Artist', 'LicenseShortName'].filter((k) => m[k]).map((k) => [k, { value: m[k].value }]));
 
-const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'chair', 'tapestry', 'mask', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
-const WELLCOME_Q = ['botany', 'anatomy', 'astronomy', 'alchemy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'magic', 'moon', 'ocean', 'birds'];
+const VAM_Q = ['pattern', 'poster', 'textile', 'ceramic', 'jewellery', 'dress', 'tile', 'wallpaper', 'kimono', 'teapot', 'tapestry', 'glass', 'illustration', 'photograph', 'shoe', 'silk', 'map', 'clock', 'dragon', 'bird', 'flower', 'ship', 'theatre', 'toy'];
+const WELLCOME_Q = ['botany', 'anatomy', 'insects', 'skeleton', 'microscope', 'phrenology', 'herbal', 'zoology', 'brain', 'eye', 'heart', 'mushroom', 'plague', 'pharmacy', 'tattoo', 'dream', 'moon', 'ocean', 'birds'];
 
-const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'carnival', 'calligraphy', 'mosaic', 'astronomy', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
+const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'calligraphy', 'mosaic', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
 
 const wikiRandom = (host) => `${host}/w/api.php?action=query&format=json&generator=random&grnnamespace=0&grnlimit=30&prop=extracts|pageimages|description&exintro=1&explaintext=1&exlimit=20&pithumbsize=800`;
 const wikiTrim = (d) => ({ query: { pages: Object.values(d.query?.pages ?? {}).map((x) => ({ pageid: x.pageid, title: x.title, description: x.description, extract: x.extract, thumbnail: x.thumbnail && { source: x.thumbnail.source } })) } });
