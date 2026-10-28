@@ -987,7 +987,7 @@ const sources = [
 	addEventListener('keydown', (e) => {
 		if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
 		const { cards, i } = current();
-		const go = (n: number) => { const c = cards[Math.max(0, Math.min(cards.length - 1, n))]; c?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+		const go = (n: number) => { const c = cards[Math.max(0, Math.min(cards.length - 1, n))]; c?.scrollIntoView({ block: 'start' }); };
 		if (e.key === 'j') go(cards[i] && cards[i].getBoundingClientRect().top > 80 ? i : i + 1);
 		else if (e.key === 'k') go(i - 1);
 		else if (e.key === 's') cards[i]?.querySelector<HTMLButtonElement>('.save')?.click();
@@ -1050,7 +1050,7 @@ const sources = [
 	:global(.card) {
 		background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
 		padding: 14px 16px 12px; scroll-margin-top: 60px;
-		animation: rise 0.4s ease-out;
+		animation: rise 0.15s ease-out;
 	}
 	@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 	:global(.card.child) { margin-left: 20px; border-left: 2px solid var(--amber); }
@@ -1061,7 +1061,7 @@ const sources = [
 	}
 	:global(.card figure img) {
 		display: block; width: 100%; max-height: 80vh; object-fit: contain;
-		opacity: 0; transition: opacity 0.5s;
+		opacity: 0; transition: opacity 0.15s;
 	}
 	:global(.card figure.loaded img) { opacity: 1; }
 	:global(.card figure.play) { cursor: pointer; position: relative; }
