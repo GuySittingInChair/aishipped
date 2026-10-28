@@ -89,7 +89,13 @@ const sources = [
 			<input type="range" min="10" max="60" step="5" value="25" id="chapterLen" />
 			<span class="desc">cards between each stopping point</span>
 		</label>
-		<p class="row"><button id="resetTune">reset</button> <button data-close>done</button></p>
+		<p class="lede audit">
+			What decides the order: a random draw using the weights above, nothing else. No model, no profile, no history of what
+			you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
+			Some sources hand over their own popular lists (wildlife and Hacker News by votes, Mastodon trends, Wikipedia's most read),
+			ranked the same for everyone. Set those to 0 for a feed with no popularity in it at all.
+		</p>
+		<p class="row"><button id="forgetSeen">forget what I've seen</button> <button id="resetTune">reset</button> <button data-close>done</button></p>
 	</aside>
 
 	<aside id="saved" class="panel" hidden>
@@ -627,6 +633,10 @@ const sources = [
 	}
 	function saveWeights() { store(W_KEY, { ...weights(), chapter: +chapterInput.value }); syncOutputs(); }
 	for (const s of [...sliders, chapterInput]) s.addEventListener('input', saveWeights);
+	document.getElementById('forgetSeen')!.addEventListener('click', (e) => {
+		seen.clear(); remember();
+		(e.target as HTMLButtonElement).textContent = 'forgotten';
+	});
 	document.getElementById('resetTune')!.addEventListener('click', () => {
 		for (const s of sliders) s.value = s.dataset.default!;
 		chapterInput.value = '25';
@@ -669,7 +679,10 @@ const sources = [
 	// ---- rendering ----------------------------------------------------------
 
 	const stream = document.getElementById('stream')!;
-	const seen = new Set<string>();
+	// every card you've been shown, across visits, so the feed doesn't repeat itself
+	const SEEN_KEY = 'aishipped.feed.seen';
+	const seen = new Set<string>(load<string[]>(SEEN_KEY, []));
+	const remember = () => store(SEEN_KEY, [...seen].slice(-20000));
 	let saved = load<{ id: string; title: string; link: string; src: string }[]>(S_KEY, []);
 	let shown = 0;
 	let chapter = 1;
@@ -788,6 +801,7 @@ const sources = [
 			if (sinceBreak >= +chapterInput.value) { stream.append(chapterBreak()); sinceBreak = 0; }
 		}
 		busy = false;
+		remember();
 		if (nearBottom()) more();
 	}
 	const nearBottom = () => document.getElementById('sentinel')!.getBoundingClientRect().top < innerHeight * 4;
@@ -866,12 +880,16 @@ const sources = [
 
 	// leftover cards from last visit make the first screen instant
 	const C_KEY = 'aishipped.feed.cache';
-	for (const c of shuffle(load<Card[]>(C_KEY, []))) SOURCES[c.src]?.queue.push(c);
-	addEventListener('pagehide', () => {
+	for (const c of shuffle(load<Card[]>(C_KEY, []))) if (!seen.has(c.id)) SOURCES[c.src]?.queue.push(c);
+	store(C_KEY, []);
+	const saveLeftovers = () => {
 		const left = Object.values(SOURCES).flatMap((x) => x.queue.filter((c) => !c.draw).slice(0, 4))
 			.map(({ more, draw, ...c }) => c);
 		store(C_KEY, left);
-	});
+		remember();
+	};
+	addEventListener('pagehide', saveLeftovers);
+	document.addEventListener('visibilitychange', () => { if (document.hidden) saveLeftovers(); });
 
 	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0) refill(id);
 	more(6);
@@ -969,6 +987,7 @@ const sources = [
 	.slider .name { display: flex; justify-content: space-between; color: var(--green); font-size: 0.88rem; }
 	.slider output { color: var(--amber); }
 	.slider .desc { color: var(--dim); font-size: 0.72rem; }
+	.audit { font-size: 0.75rem; margin: 4px 0 8px; }
 	.slider input { accent-color: var(--green); width: 100%; }
 	.row { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 0; }
 	#savedList { list-style: none; padding: 0; margin: 0; font-size: 0.85rem; }
