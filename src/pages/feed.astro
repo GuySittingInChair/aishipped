@@ -896,25 +896,26 @@ const sources = [
 		return d;
 	}
 
-	let busy = false;
-	async function more(n = 8) {
-		if (busy) return;
-		busy = true;
+	// a steady pipeline: keep up to 8 cards in flight, top up whenever one lands, and never wait on the slowest
+	let inFlight = 0;
+	function more(n = 8) {
 		const sentinel = document.getElementById('sentinel')!;
 		sentinel.textContent = 'loading…';
-		// start the whole batch at once so slow sources load in parallel; show each as soon as it's ready
-		const batch = Array.from({ length: n }, () => nextCard());
-		for (const pending of batch) {
-			const next = await pending;
-			if (!next) { sentinel.textContent = 'every source is off or not answering. press tune.'; break; }
-			stream.append(render(...next));
-			shown++; sinceBreak++;
-			document.getElementById('count')!.textContent = String(shown);
-			if (sinceBreak >= +chapterInput.value) { stream.append(chapterBreak()); sinceBreak = 0; }
+		for (; inFlight < n; inFlight++) {
+			nextCard().then((next) => {
+				inFlight--;
+				if (!next) {
+					if (!shown) sentinel.textContent = 'every source is off or not answering. press tune.';
+					return;
+				}
+				stream.append(render(...next));
+				shown++; sinceBreak++;
+				document.getElementById('count')!.textContent = String(shown);
+				if (sinceBreak >= +chapterInput.value) { stream.append(chapterBreak()); sinceBreak = 0; }
+				if (shown % 8 === 0) remember();
+				if (nearBottom()) more();
+			});
 		}
-		busy = false;
-		remember();
-		if (nearBottom()) more();
 	}
 	const nearBottom = () => document.getElementById('sentinel')!.getBoundingClientRect().top < innerHeight * 4;
 	new IntersectionObserver((e) => { if (e[0].isIntersecting) more(); }, { rootMargin: '3000px 0px' })
