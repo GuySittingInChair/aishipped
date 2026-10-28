@@ -32,6 +32,7 @@ const sources = [
 	['nasa', 'NASA archive', "pictures from NASA's image library: missions, telescopes, launches", 2],
 	['design', 'design', 'textiles, posters, ceramics, jewellery and dress from the V&A in London', 2],
 	['curious', 'curiosities', 'old medical, botanical and scientific images from the Wellcome Collection', 2],
+	['europe', 'europe’s museums', 'open-licensed images from thousands of European museums, libraries and archives via Europeana', 2],
 	['amour', 'amour', 'off by default: love poems and the nude in art, from Cleveland museum and PoetryDB', 0],
 	['hn', 'people talking', 'the best recent links on Hacker News, with their comment threads', 1],
 ] as const;
@@ -619,6 +620,29 @@ const sources = [
 		return shuffle(d.results.map((r: any) => wellcomeCard(r, q)).filter(Boolean));
 	}
 
+	const EU_Q = ['painting', 'map', 'manuscript', 'poster', 'photograph', 'costume', 'botanical', 'ship', 'castle', 'portrait', 'landscape', 'folk art', 'jewellery', 'bird', 'bicycle', 'carnival', 'calligraphy', 'mosaic', 'astronomy', 'music instrument', 'sculpture', 'fashion', 'textile', 'window'];
+	const first = (x: unknown) => (Array.isArray(x) ? x[0] : x) as string | undefined;
+	function europeCard(i: any): Card | null {
+		const preview = first(i.edmPreview);
+		if (!preview) return null;
+		const title = (first(i.title) ?? '').split(',').slice(0, 4).join(',').slice(0, 140) || 'untitled';
+		return {
+			id: `eu:${i.id}`,
+			src: 'europe',
+			title,
+			sub: [first(i.dcCreator), first(i.year), first(i.country)].filter(Boolean).join(' · '),
+			img: `${preview}&size=w400`,
+			imgAlt: title,
+			link: (i.guid ?? `https://www.europeana.eu/item${i.id}`).split('?')[0],
+			linkText: 'europeana.eu',
+			credit: [first(i.dataProvider), /zero|publicdomain|mark/.test(first(i.rights) ?? '') ? 'public domain' : 'open licence'].filter(Boolean).join(' · '),
+		};
+	}
+	async function europe() {
+		const d = await getJSON(`https://api.europeana.eu/record/v2/search.json?${qs({ query: pick(EU_Q), wskey: 'api2demo', rows: 24, start: 1 + rand(400), media: 'true', reusability: 'open', qf: 'TYPE:IMAGE' })}`);
+		return shuffle((d.items ?? []).map(europeCard).filter(Boolean));
+	}
+
 	let hnIds: number[] = [];
 	async function hn() {
 		if (!hnIds.length) hnIds = shuffle(await getJSON('https://hacker-news.firebaseio.com/v0/beststories.json'));
@@ -684,7 +708,7 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, films, today, nasa, photos, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, films, today, nasa, photos, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
