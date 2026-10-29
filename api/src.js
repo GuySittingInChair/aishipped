@@ -19,6 +19,20 @@ const wikiTrim = (d) => ({ query: { pages: Object.values(d.query?.pages ?? {}).m
 
 export const SOURCES = {
 	random: { pages: 60, ttl: 3600, url: () => wikiRandom('https://en.wikipedia.org'), trim: wikiTrim },
+	// gutendex's default order is most-downloaded; it takes ~10s per page, so this one really wants the cache
+	gutenberg: {
+		pages: 40,
+		ttl: 86400 * 7,
+		url: (p) => `https://gutendex.com/books/?page=${p + 1}`,
+		trim: (d) => ({ results: (d.results ?? []).map((b) => ({ id: b.id, title: b.title, authors: b.authors, subjects: b.subjects?.slice(0, 3), summaries: b.summaries?.slice(0, 1), formats: { 'image/jpeg': b.formats?.['image/jpeg'] } })) }),
+	},
+	// gutendex's default order is most-downloaded; it takes ~10s per page, so this one really wants the cache
+	gutenberg: {
+		pages: 40,
+		ttl: 86400 * 7,
+		url: (p) => `https://gutendex.com/books/?page=${p + 1}`,
+		trim: (d) => ({ results: (d.results ?? []).map((b) => ({ id: b.id, title: b.title, authors: b.authors, subjects: b.subjects?.slice(0, 3), summaries: b.summaries?.slice(0, 1), formats: { 'image/jpeg': b.formats?.['image/jpeg'] } })) }),
+	},
 	travel: { pages: 60, ttl: 3600, url: () => wikiRandom('https://en.wikivoyage.org'), trim: wikiTrim },
 	europe: {
 		pages: EU_Q.length * 4,

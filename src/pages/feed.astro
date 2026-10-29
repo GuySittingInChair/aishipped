@@ -27,6 +27,9 @@ const sources = [
 	['planet', 'the planet right now', 'earthquakes from the last day, live from the US Geological Survey', 1],
 	['fedi', 'fediverse', 'posts people are boosting on mastodon.social right now', 1],
 	['films', 'old films', 'public-domain films from the Prelinger Archives: ads, newsreels, how-to films, 1910s–1970s. tap to play', 2],
+	['met', 'the met', 'public-domain art and objects from the Metropolitan Museum of Art in New York: 5,000 years of it', 2],
+	['gutenberg', 'free books', 'whole books you can read free on Project Gutenberg, from its 79,000', 2],
+	['records', 'old records', '78rpm records from the 1900s–1950s, digitised by the Internet Archive. tap to play', 2],
 	['today', 'today', "what the world is reading on Wikipedia right now, and today's news", 1],
 	['design', 'design', 'textiles, posters, ceramics, jewellery and dress from the V&A in London', 2],
 	['curious', 'curiosities', 'old medical, botanical and scientific images from the Wellcome Collection', 2],
@@ -775,6 +778,90 @@ const sources = [
 	}
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
+
+	// ---- the Met ------------------------------------------------------------------
+	function metCard(o: any): Card | null {
+		if (!o?.isPublicDomain || !o.primaryImageSmall || !o.title) return null;
+		return {
+			id: `met:${o.objectID}`,
+			src: 'met',
+			title: o.title,
+			sub: [o.artistDisplayName, o.objectDate, o.culture].filter(Boolean).join(' · '),
+			body: [o.medium, o.department].filter(Boolean).join(' · '),
+			img: o.primaryImageSmall,
+			imgAlt: o.title,
+			link: o.objectURL,
+			linkText: 'metmuseum.org',
+			credit: 'The Metropolitan Museum of Art · public domain',
+			more: o.artistDisplayName ? async () => {
+				const d = await getJSON(`https://collectionapi.metmuseum.org/public/collection/v1.1/search?${qs({ hasImages: true, artistOrCulture: true, q: o.artistDisplayName, limit: 40 })}`);
+				return metObjects(shuffle((d.objectIDs ?? []).filter((x: number) => x !== o.objectID)).slice(0, 8), 3);
+			} : undefined,
+		};
+	}
+	async function metObjects(ids: number[], max = 99) {
+		const got = await Promise.all(ids.map((id) => getJSON(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`, 12000).catch(() => null)));
+		return got.map(metCard).filter(Boolean).slice(0, max) as Card[];
+	}
+	// the Met's own highlights: a few thousand objects its curators flag
+	async function met() {
+		const d = await getJSON(`https://collectionapi.metmuseum.org/public/collection/v1.1/search?${qs({ hasImages: true, isHighlight: true, q: '*', limit: 16, offset: rand(2500) })}`);
+		return metObjects(d.objectIDs ?? []);
+	}
+	let metIds: Promise<number[]> | undefined;
+	const allMetIds = () => (metIds ??= fetch('/data/met-ids.txt').then((r) => r.text()).then((t) => {
+		let v = 0;
+		return t.split(',').map((g) => (v += parseInt(g, 36)));
+	}));
+
+	// ---- Project Gutenberg ------------------------------------------------------------
+	function gutenbergCard(b: any): Card | null {
+		if (!b?.title) return null;
+		const who = (b.authors ?? []).map((a: any) => a.name.split(', ').reverse().join(' ')).join(', ');
+		return {
+			id: `gut:${b.id}`,
+			src: 'gutenberg',
+			title: b.title,
+			sub: [who, b.authors?.[0]?.birth_year && `${b.authors[0].birth_year}–${b.authors[0].death_year ?? ''}`, (b.subjects ?? []).slice(0, 2).join('; ')].filter(Boolean).join(' · '),
+			body: b.summaries?.[0] ? text(b.summaries[0].replace(/\s*\(This is an automatically generated summary\.\)\s*/, '')) : undefined,
+			img: b.formats?.['image/jpeg'],
+			imgAlt: b.title,
+			link: `https://www.gutenberg.org/ebooks/${b.id}`,
+			linkText: 'read it free',
+			credit: 'Project Gutenberg · public domain',
+			more: b.authors?.[0] ? async () => {
+				const d = await getJSON(`https://gutendex.com/books/?${qs({ search: b.authors[0].name.split(',')[0] })}`);
+				return shuffle((d.results ?? []).filter((x: any) => x.id !== b.id).map(gutenbergCard).filter(Boolean)).slice(0, 3);
+			} : undefined,
+		};
+	}
+	// default order is most-downloaded, so the first pages are the well-loved ones
+	const gutenberg = async () => shuffle(((await relay('gutenberg', 40, `https://gutendex.com/books/?page=${1 + rand(40)}`)).results ?? []).map(gutenbergCard).filter(Boolean));
+
+	// ---- 78rpm records -------------------------------------------------------------------
+	const REC_FL = '&fl[]=title&fl[]=creator&fl[]=year&fl[]=date&fl[]=subject';
+	function recordCard(r: any): Card | null {
+		if (!r?.title) return null;
+		const who = [r.creator].flat().filter(Boolean).join(', ');
+		return {
+			id: `rec:${r.identifier}`,
+			src: 'records',
+			title: r.title,
+			sub: [who, r.year ?? r.date?.slice?.(0, 4), '78rpm'].filter(Boolean).join(' · '),
+			img: `https://archive.org/services/img/${r.identifier}`,
+			imgAlt: `record label: ${r.title}`,
+			embed: `https://archive.org/embed/${r.identifier}?autoplay=1`,
+			link: `https://archive.org/details/${r.identifier}`,
+			linkText: 'archive.org',
+			credit: 'Internet Archive · Great 78 Project',
+			more: who ? async () => {
+				const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({ q: `collection:georgeblood AND creator:"${who.split(',')[0].replace(/"/g, '')}"`, 'fl[]': 'identifier', rows: 30, output: 'json' })}${REC_FL}`);
+				return shuffle(d.response.docs.filter((x: any) => x.identifier !== r.identifier).map(recordCard).filter(Boolean)).slice(0, 3);
+			} : undefined,
+		};
+	}
+	const records = async () => shuffle((await getJSON(`https://archive.org/advancedsearch.php?${qs({ q: 'collection:georgeblood', 'fl[]': 'identifier', rows: 25, page: 1 + rand(60), 'sort[]': 'downloads desc', output: 'json' })}${REC_FL}`)).response.docs.map(recordCard).filter(Boolean));
+
 	// ---- uncurated mode ----------------------------------------------------------
 	// Every curated list above (featured, most-voted, trending, museum highlights, my topic lists) is
 	// someone's selection. Uncurated mode replaces each with a uniform random draw from the whole
@@ -804,6 +891,17 @@ const sources = [
 		design: async () => shuffle((await getJSON(`https://api.vam.ac.uk/v2/objects/search?${qs({ images_exist: 1, page_size: 20, page: 1 + rand(400) })}`)).records.map((r: any) => vamCard(r, '')).filter(Boolean)),
 		curious: async () => shuffle((await getJSON(`https://api.wellcomecollection.org/catalogue/v2/images?${qs({ pageSize: 20, page: 1 + rand(500), 'locations.license': 'pdm,cc-0,cc-by' })}`)).results.map((r: any) => wellcomeCard(r, '')).filter(Boolean)),
 		europe: async () => shuffle(((await getJSON(`https://api.europeana.eu/record/v2/search.json?${qs({ query: '*', wskey: 'api2demo', rows: 24, start: 1 + rand(975), media: 'true', reusability: 'open', qf: 'TYPE:IMAGE' })}`)).items ?? []).map(europeCard).filter(Boolean)),
+		met: async () => {
+			const all = await allMetIds();
+			return metObjects(Array.from({ length: 14 }, () => all[rand(all.length)]));
+		},
+		gutenberg: async () => shuffle(((await getJSON(`https://gutendex.com/books/?page=${1 + rand(2400)}`, 45000)).results ?? []).map(gutenbergCard).filter(Boolean)),
+		// archive search stops paging at 10,000 results, so pick a random year first
+		records: async () => {
+			const y = 1898 + rand(62);
+			const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({ q: `collection:georgeblood AND year:${y}`, 'fl[]': 'identifier', rows: 25, page: 1 + rand(40), output: 'json' })}${REC_FL}`);
+			return shuffle(d.response.docs.map(recordCard).filter(Boolean));
+		},
 		films: async () => {
 			const d = await getJSON(`https://archive.org/advancedsearch.php?${qs({ q: 'collection:prelinger AND mediatype:movies', 'fl[]': 'identifier', rows: 20, page: 1 + rand(500), output: 'json' })}&fl[]=title&fl[]=year&fl[]=description&fl[]=subject`);
 			return shuffle(d.response.docs.map(filmCard).filter(Boolean));
@@ -818,7 +916,7 @@ const sources = [
 		document.getElementById('tune')!.classList.toggle('raw', rawBox.checked);
 	});
 
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, met, gutenberg, records, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };

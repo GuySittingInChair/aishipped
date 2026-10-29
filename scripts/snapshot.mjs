@@ -4,7 +4,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { SOURCES } from '../api/src.js';
 
-const COUNT = { nature: 24, featured: 60, history: 30, art: 30, photos: 30, books: 30, design: 24, curious: 22, europe: 30, random: 40, travel: 30 };
+const COUNT = { nature: 24, featured: 60, history: 30, art: 30, photos: 30, books: 30, design: 24, curious: 22, europe: 30, random: 40, travel: 30, gutenberg: 12 };
 const out = new URL('../public/data/', import.meta.url);
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
@@ -16,7 +16,7 @@ const done = Object.fromEntries(Object.keys(COUNT).map((s) => [s, 0]));
 async function run([s, i, p]) {
 	const src = SOURCES[s];
 	try {
-		const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped-feed/1.0 (https://aishipped.lol; build snapshot)' }, signal: AbortSignal.timeout(20000) });
+		const r = await fetch(src.url(p), { headers: { 'User-Agent': 'aishipped-feed/1.0 (https://aishipped.lol; build snapshot)' }, signal: AbortSignal.timeout(30000) });
 		if (!r.ok) throw new Error(r.status);
 		const d = await r.json();
 		// number files by success so the manifest count has no gaps
@@ -39,5 +39,13 @@ try {
 	COUNT.poems = Math.floor(all.length / 30);
 	for (let i = 0; i < COUNT.poems; i++) await writeFile(new URL(`poems-${i}.json`, out), JSON.stringify(all.slice(i * 30, i * 30 + 30)));
 } catch (e) { console.warn(`snapshot poems: ${e.message}`); }
-await writeFile(new URL('manifest.json', out), JSON.stringify({ ...done, poems: COUNT.poems ?? 0 }));
+// the Met's whole object list, so the feed can draw uniformly from all of it.
+// stored as base-36 gaps between sorted IDs (mostly "1"), which compresses to almost nothing
+let met = 0;
+try {
+	const ids = (await (await fetch('https://collectionapi.metmuseum.org/public/collection/v1/objects', { signal: AbortSignal.timeout(60000) })).json()).objectIDs.sort((a, b) => a - b);
+	await writeFile(new URL('met-ids.txt', out), ids.map((v, i) => (v - (ids[i - 1] ?? 0)).toString(36)).join(','));
+	met = ids.length;
+} catch (e) { console.warn(`snapshot met: ${e.message}`); }
+await writeFile(new URL('manifest.json', out), JSON.stringify({ ...done, poems: COUNT.poems ?? 0, met }));
 console.log(`snapshot: ${ok}/${jobs.length} batches`);
