@@ -30,6 +30,7 @@ const sources = [
 	['met', 'the met', 'public-domain art and objects from the Metropolitan Museum of Art in New York: 5,000 years of it', 2],
 	['gutenberg', 'free books', 'whole books you can read free on Project Gutenberg, from its 79,000', 2],
 	['records', 'old records', '78rpm records from the 1900s–1950s, digitised by the Internet Archive. tap to play', 2],
+	['cyber', 'security', 'cybersecurity: vulnerabilities attackers are really using (CISA), and how attacks work (MITRE ATT&CK, CAPEC)', 2],
 	['today', 'today', "what the world is reading on Wikipedia right now, and today's news", 1],
 	['design', 'design', 'textiles, posters, ceramics, jewellery and dress from the V&A in London', 2],
 	['curious', 'curiosities', 'old medical, botanical and scientific images from the Wellcome Collection', 2],
@@ -97,6 +98,11 @@ const sources = [
 			(no featured lists, no most-voted, no trending, no museum highlights, no topic lists chosen by me). Sources that are
 			nothing but someone's picks switch off. Expect it to be stranger and plainer: that is what an unedited archive looks like.</span>
 		</label>
+		<label class="rawtoggle">
+			<input type="checkbox" id="strict" checked />
+			<span><b>strict</b>: a card with too little text to check against your never-show list (an untitled picture, say) is
+			not shown. Everything downloaded ahead of time was also screened against the whole list, every field, before it got here.</span>
+		</label>
 		<p class="lede">How often each kind of card shows up. 0 turns it off.</p>
 		{sources.map(([id, name, desc, w]) => (
 			<label class="slider">
@@ -134,6 +140,8 @@ const sources = [
 </Base>
 
 <script>
+	import BLOCK_TXT from '../data/blocklist.txt?raw';
+	import { blockRegex } from '../data/block.mjs';
 	type Card = {
 		id: string;
 		src: string;
@@ -190,14 +198,16 @@ const sources = [
 	// ---- never show -----------------------------------------------------------
 
 	const B_KEY = 'aishipped.feed.block';
-	const DEFAULT_BLOCK = `# big tech\nbig tech\ngoogle\nalphabet inc\nyoutube\napple inc\niphone\nipad\nmacbook\nmicrosoft\namazon.com\namazon web services\nalexa\njeff bezos\nbezos\nmeta platforms\nfacebook\ninstagram\nwhatsapp\nzuckerberg\ntwitter\ntweet\nx.com\ntesla\nopenai\nchatgpt\ngpt\nanthropic\ndeepmind\ngemini\nnvidia\nnetflix\nuber\nairbnb\ntiktok\nbytedance\noracle\nibm\nintel\npalantir\nsamsung\nhuawei\nalibaba\ntencent\nsilicon valley\nstartup\ny combinator\nsam altman\naltman\npeter thiel\nbill gates\nandreessen\nartificial intelligence\nmachine learning\nai\nllm\nchatbot\nalgorithm\ncrypto\ncryptocurrency\nbitcoin\nblockchain\nnft\nsmartphone\napp store\n# musk\nmusk\nelon\nmusk ox\nmuskox\novibos\nmuskrat\nspacex\nstarlink\nneuralink\nxai\nstarship\n# yews\nyew\nyews\ntaxus\n# parasites\nparasite\nparasitic\nparasitism\nparasitoid\ntapeworm\nhookworm\nroundworm\nfluke\nleech\ntick\nlouse\nlice\nflea\nmite\nmistletoe\ndodder\nbotfly\nlamprey\ncuckoo\nrafflesia\ncordyceps\ntoxoplasma\nmalaria\nplasmodium\nheartworm\n# walrus\nwalrus\nodobenus\n# red hair\nred hair\nred-haired\nredhead\nred-headed\nredheaded\nginger hair\nginger-haired\nauburn hair\ntitian hair\nstrawberry blonde\n# california\ncalifornia\ncalifornian\nlos angeles\nl.a.\nhollywood\nsan francisco\nbay area\nsan diego\nsan jose\nsacramento\noakland\nberkeley\nmalibu\nbeverly hills\ncupertino\nmountain view\nmenlo park\npalo alto\n# chairs\nchair\narmchair\nrocking chair\nhighchair\nstool\nthrone\n# religion\nreligion\nreligious\ngod\ngoddess\ndeity\ndeities\ndivine\nsacred\nholy\nchurch\ncathedral\nchapel\nabbey\nmonastery\nconvent\ntemple\nshrine\nmosque\nsynagogue\nbible\nbiblical\ngospel\nscripture\nchrist\nchristian\nchristianity\njesus\nmadonna\nvirgin mary\nmary magdalene\nsaint\napostle\nprophet\npope\npapal\nbishop\narchbishop\npriest\nmonk\nnun\ncardinal\nvicar\nclergy\nislam\nislamic\nmuslim\nquran\nkoran\nhindu\nhinduism\nbuddha\nbuddhist\nbuddhism\njewish\njudaism\ntorah\nrabbi\nsikh\nshinto\ntaoist\nprayer\npray\nworship\nangel\ndemon\ndevil\nsatan\nheaven\nhell\ncrucifix\ncrucifixion\nbaptism\nresurrection\nnativity\nannunciation\neaster\nchristmas\nramadan\ndiwali\nhanukkah\nmyth\nmythology\nmythological\nvenus\ncupid\neros\nzeus\napollo\njupiter\njuno\nathena\nodin\nthor\npagan\nritual\nidol\nwitch\nwitchcraft\noccult\nspiritual\nsoul\nafterlife\nsermon\nhymn\npsalm\nmissionary\npilgrim\npilgrimage\nreliquary\naltarpiece\naltar\nicon\ntheology\n# artificial intelligence\nartificial intelligence\na.i.\nagi\nneural network\ndeep learning\nlarge language model\ngenerative\ngenai\nrobot\nrobotics\nautomation\ncopilot\nmidjourney\nstable diffusion\ndall-e\nsora\nclaude\nllama\nmistral\nhugging face\nsuperintelligence\nsingularity\n# trump\ntrump\ntrumps\ndonald\nmaga\nmar-a-lago\nmelania\nivanka\njared kushner\nmike pence\njd vance\nvance\n# t-shaped / tea / wonka / bees / ships\nt-shaped\nt-shirt\ntee\ntea\nteapot\nteacup\nteahouse\ntesla\nnikola tesla\ncharlie and the chocolate factory\nwilly wonka\nwonka\noompa-loompa\nroald dahl\nbee\nbumblebee\nhoneybee\nbeehive\nhive\napiary\napis\nbeekeeping\nbeekeeper\nhoney\nship\nshipwreck\nshipyard\nsteamship\nwarship\nbattleship\nsailing ship\nfrigate\ngalleon\nschooner\nbrig\nvessel\nliner\nhms\nuss\nboat\n# stars\nstar\nstarry\nstellar\nstarlight\nstar stuff\nnebula\ngalaxy\ngalaxies\nsupernova\nconstellation\npulsar\nquasar\nmilky way\nastronomy\nastronomer\nastronomical\nastrophysics\ncosmos\nzodiac\nastrology\n# nasa\nnasa\napod\njet propulsion laboratory\njpl\nastronaut\ncosmonaut\nspace shuttle\nspace station\nspacecraft\nspace probe\nrocket launch\nmoon landing\n# russia\nrussia\nrussian\nmoscow\nsoviet\nussr\nkremlin\nputin\nsiberia\nst petersburg\nsaint petersburg\nleningrad\ntsar\nczar\nromanov\nbolshevik`;
+	const DEFAULT_BLOCK = BLOCK_TXT.trim();
 	let blockRe: RegExp | null = null;
-	function setBlock(list: string) {
-		const terms = list.split('\n').map((t) => t.trim().toLowerCase()).filter((t) => t && !t.startsWith('#'));
-		const esc = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s-]+'));
-		blockRe = esc.length ? new RegExp(`(?:^|[^\\p{L}])(?:${esc.join('|')})(?:s|es)?(?![\\p{L}])`, 'iu') : null;
-	}
-	const blocked = (c: Card) => !!blockRe && blockRe.test([c.title, c.sub, c.body, c.imgAlt, c.credit, c.extra?.[1]].filter(Boolean).join(' \n '));
+	function setBlock(list: string) { blockRe = blockRegex(list); }
+	// strict: if a card has too little text to check against the list, don't show it at all
+	const ST_KEY = 'aishipped.feed.strict';
+	const strictBox = document.getElementById('strict') as HTMLInputElement;
+	strictBox.checked = load<boolean>(ST_KEY, true);
+	const checkable = (c: Card) => [c.title, c.sub, c.body, c.imgAlt].filter(Boolean).join(' ').length >= 25;
+	const blocked = (c: Card) => (strictBox.checked && c.src !== 'automata' && !checkable(c))
+		|| (!!blockRe && blockRe.test([c.title, c.sub, c.body, c.imgAlt, c.credit, c.extra?.[1]].filter(Boolean).join(' \n ')));
 
 	// ---- sources ------------------------------------------------------------
 
@@ -862,6 +872,9 @@ const sources = [
 	}
 	const records = async () => shuffle((await getJSON(`https://archive.org/advancedsearch.php?${qs({ q: 'collection:georgeblood', 'fl[]': 'identifier', rows: 25, page: 1 + rand(60), 'sort[]': 'downloads desc', output: 'json' })}${REC_FL}`)).response.docs.map(recordCard).filter(Boolean));
 
+	// ---- security: downloaded and screened at build time (scripts/snapshot.mjs) ----
+	const cyber = async () => shuffle((await snapshot('cyber')).map((c: Card) => ({ ...c, src: 'cyber' })));
+
 	// ---- uncurated mode ----------------------------------------------------------
 	// Every curated list above (featured, most-voted, trending, museum highlights, my topic lists) is
 	// someone's selection. Uncurated mode replaces each with a uniform random draw from the whole
@@ -916,7 +929,7 @@ const sources = [
 		document.getElementById('tune')!.classList.toggle('raw', rawBox.checked);
 	});
 
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, met, gutenberg, records, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, met, gutenberg, records, cyber, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
@@ -952,6 +965,7 @@ const sources = [
 	// an edited list still picks up groups added to the default later
 	for (const g of DEFAULT_BLOCK.split(/\n(?=# )/)) if (!blockBox.value.includes(g.split('\n')[0])) blockBox.value += '\n' + g;
 	setBlock(blockBox.value);
+	strictBox.addEventListener('change', () => { store(ST_KEY, strictBox.checked); applyBlock(); });
 	const applyBlock = () => {
 		store(B_KEY, blockBox.value);
 		setBlock(blockBox.value);
