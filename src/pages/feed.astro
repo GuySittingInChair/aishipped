@@ -76,8 +76,9 @@ const sources = [
 			<h1>the feed<span class="cursor">_</span></h1>
 			<p class="tag">an endless scroll that isn't farming you.</p>
 			<ol class="rules">
-				<li><b>you are the algorithm.</b> Press <em>tune</em>: each slider is how often a kind of card shows up. That is the whole ranking.</li>
-				<li><b>every card tells you why it's here.</b> No hidden engagement score. Cards are picked at random using your weights.</li>
+				<li><b>you are the algorithm.</b> Press <em>tune</em>: each slider is how often a kind of card shows up, and <em>your taste</em> is a profile you write yourself. That is the whole ranking.</li>
+				<li><b>every card tells you why it's here.</b> No hidden engagement score. The line at the top of each card is the full reason, and <em>delivery log</em> lets you download every one.</li>
+				<li><b>any ranking runs on your computer.</b> Taste matching uses your own words, or a model on your own machine through Ollama. No server sees your profile.</li>
 				<li><b>nothing is tracked.</b> This page has no analytics. Your weights and saves stay in this browser.</li>
 				<li><b>everything is credited and linked.</b> All of it comes from museums, Wikipedia, NASA and people who share their work openly.</li>
 				<li><b>it shows you the clock.</b> The time you've spent is at the top, and every chapter ends with a place to stop.</li>
@@ -121,9 +122,37 @@ const sources = [
 			<span class="desc">One word or phrase per line, lines starting with # are notes. Any card whose text mentions one is dropped before you see it, including "more like this". It reads text only: it can't see what is in a picture.</span>
 		</label>
 		<p class="row"><button id="resetBlock">restore default list</button></p>
+		<h2 class="taste-h">your taste <small>runs on your computer</small></h2>
+		<label class="slider">
+			<span class="name">more of this</span>
+			<textarea id="tasteWant" rows="4" spellcheck="false" placeholder="one thing per line, e.g.&#10;birds&#10;old jazz records&#10;japanese woodblock prints"></textarea>
+		</label>
+		<label class="slider">
+			<span class="name">less of this</span>
+			<textarea id="tasteLess" rows="3" spellcheck="false" placeholder="one thing per line. softer than never show: it lowers a card's score, it doesn't hide it"></textarea>
+		</label>
+		<label class="slider">
+			<span class="name">taste strength <output data-for="tasteStrength">0</output></span>
+			<input type="range" min="0" max="5" step="1" value="0" id="tasteStrength" />
+			<span class="desc" id="tasteDesc">0 is off: pure random draw. Each step compares more of the cards waiting in a source and shows the one closest to your taste.</span>
+		</label>
+		<label class="rawtoggle">
+			<input type="checkbox" id="tasteSaves" checked />
+			<span><b>learn from my saves</b>: cards you've starred count as "more of this" too.</span>
+		</label>
+		<label class="rawtoggle">
+			<input type="checkbox" id="tasteOllama" />
+			<span><b>use the model on my computer</b>: match by meaning instead of exact words, with
+			<input id="tasteModel" value="nomic-embed-text" size="16" spellcheck="false" /> through Ollama at localhost.
+			One time: <code>ollama pull nomic-embed-text</code>, then start Ollama with <code>OLLAMA_ORIGINS=https://aishipped.lol ollama serve</code>.
+			<em id="tasteStatus"></em></span>
+		</label>
+		<p class="row"><button id="tasteExport">download my profile</button> <button id="tasteImport">load a profile</button> <button id="logExport">download delivery log</button></p>
+		<p class="desc">The delivery log is every card shown on this device: when, from where, the link, the image address, the reason and the taste score, plus every server this page has contacted. It is kept in this browser and downloaded as a file you can open and check.</p>
 		<p class="lede audit">
-			What decides the order: a random draw using the weights above, nothing else. No model, no profile, no history of what
-			you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
+			What decides the order: a random draw using the weights above, then, only if you turn taste strength up, a comparison
+			against the profile you wrote, done in this browser or by your own computer's model. No server-side model, no profile anyone
+			else holds, no history of what you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
 			Some sources hand over their own popular lists (wildlife and Hacker News by votes, Mastodon trends, Wikipedia's most read),
 			ranked the same for everyone. Set those to 0 for a feed with no popularity in it at all.
 		</p>
@@ -988,11 +1017,161 @@ const sources = [
 				await (pending.length ? Promise.race(pending) : refill(c.id));
 				if (!s.queue.length) continue;
 			}
-			const card = s.queue.shift();
-			if (card && !seen.has(card.id) && !blocked(card)) return [card, c.why];
+			// taste: look at the next few cards waiting in this source and take the closest; strength 0 takes the first
+			s.queue = s.queue.filter((x) => !seen.has(x.id) && !blocked(x));
+			if (!s.queue.length) { tried.add(c.id); continue; }
+			// several cards are being picked at once, so claim the chosen card by identity after scoring
+			const pickT = await tastePick(s.queue);
+			const at = pickT.card ? s.queue.indexOf(pickT.card) : -1;
+			if (at < 0) continue;
+			const card = s.queue.splice(at, 1)[0];
+			if (!seen.has(card.id)) { taken.set(card.id, pickT); return [card, pickT.why ? `${c.why} · ${pickT.why}` : c.why]; }
 			if (!s.queue.length) tried.add(c.id);
 		}
 	}
+
+	// ---- your taste (runs here, or on your own computer) ---------------------
+
+	const T_KEY = 'aishipped.feed.taste';
+	const LOG_KEY = 'aishipped.feed.log';
+	type Taste = { want: string; less: string; strength: number; saves: boolean; ollama: boolean; model: string };
+	const tasteDefault: Taste = { want: '', less: '', strength: 0, saves: true, ollama: false, model: 'nomic-embed-text' };
+	let taste: Taste = { ...tasteDefault, ...load<Partial<Taste>>(T_KEY, {}) };
+	const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+	const tWant = $<HTMLTextAreaElement>('tasteWant'), tLess = $<HTMLTextAreaElement>('tasteLess');
+	const tStrength = $<HTMLInputElement>('tasteStrength'), tSaves = $<HTMLInputElement>('tasteSaves');
+	const tOllama = $<HTMLInputElement>('tasteOllama'), tModel = $<HTMLInputElement>('tasteModel'), tStatus = $('tasteStatus');
+	const showTaste = () => {
+		tWant.value = taste.want; tLess.value = taste.less; tStrength.value = String(taste.strength);
+		tSaves.checked = taste.saves; tOllama.checked = taste.ollama; tModel.value = taste.model;
+		document.querySelector('output[data-for="tasteStrength"]')!.textContent = String(taste.strength);
+	};
+	const saveTaste = () => {
+		taste = { want: tWant.value, less: tLess.value, strength: +tStrength.value, saves: tSaves.checked, ollama: tOllama.checked, model: tModel.value.trim() || 'nomic-embed-text' };
+		store(T_KEY, taste); showTaste(); profileVecs = null;
+		if (taste.ollama) checkOllama();
+	};
+	showTaste();
+	for (const x of [tWant, tLess, tModel]) x.addEventListener('change', saveTaste);
+	for (const x of [tStrength, tSaves, tOllama]) x.addEventListener('input', saveTaste);
+
+	const cardText = (c: Card) => [c.title, c.sub, c.body?.slice(0, 500), c.imgAlt].filter(Boolean).join('. ');
+	const lines = (t: string) => t.split('\n').map((x) => x.trim()).filter((x) => x && !x.startsWith('#'));
+	// the profile: what you wrote, plus your saves if you allow it
+	const wants = () => [...lines(taste.want).map((t) => ({ t, label: t })), ...(taste.saves ? saved.slice(0, 60).map((x) => ({ t: x.text || x.title, label: `your save "${x.title.slice(0, 40)}"` })) : [])];
+	const lesses = () => lines(taste.less).map((t) => ({ t, label: t }));
+
+	// --- word matching: always available, nothing leaves the page
+	const STOP = new Set('the a an and or of in on at to for with from by is are was were be this that it its as into over under old new'.split(' '));
+	const toks = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => w.length > 2 && !STOP.has(w));
+	function wordScore(c: Card) {
+		const have = new Set(toks(cardText(c)));
+		const hit = (t: string) => { const w = toks(t); return w.length ? w.filter((x) => have.has(x)).length / w.length : 0; };
+		let best = { s: 0, label: '' }, worst = { s: 0, label: '' };
+		for (const x of wants()) { const s = hit(x.t); if (s > best.s) best = { s, label: x.label }; }
+		for (const x of lesses()) { const s = hit(x.t); if (s > worst.s) worst = { s, label: x.label }; }
+		return { score: best.s - worst.s, best, worst };
+	}
+
+	// --- meaning matching: Ollama on this computer
+	const OLLAMA = 'http://localhost:11434';
+	let ollamaOk = false;
+	const vecCache = new Map<string, number[]>();
+	let profileVecs: { want: { v: number[]; label: string }[]; less: { v: number[]; label: string }[] } | null = null;
+	async function embed(texts: string[]): Promise<number[][]> {
+		const need = [...new Set(texts.filter((t) => !vecCache.has(t)))];
+		if (need.length) {
+			const r = await fetch(`${OLLAMA}/api/embed`, { method: 'POST', body: JSON.stringify({ model: taste.model, input: need }), signal: AbortSignal.timeout(20000) });
+			if (!r.ok) throw new Error(`ollama ${r.status}`);
+			const d = await r.json();
+			need.forEach((t, i) => vecCache.set(t, d.embeddings[i]));
+			if (vecCache.size > 3000) for (const k of [...vecCache.keys()].slice(0, 1000)) vecCache.delete(k);
+		}
+		return texts.map((t) => vecCache.get(t)!);
+	}
+	const cos = (a: number[], b: number[]) => { let d = 0, x = 0, y = 0; for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; x += a[i] * a[i]; y += b[i] * b[i]; } return d / (Math.sqrt(x * y) || 1); };
+	async function checkOllama() {
+		tStatus.textContent = ' checking for ollama…';
+		try {
+			await embed(['test']);
+			ollamaOk = true; tStatus.textContent = ` connected: ${taste.model} is running on this computer.`;
+		} catch {
+			ollamaOk = false; tStatus.textContent = ` not reachable, so matching by words instead. Is Ollama running with OLLAMA_ORIGINS set, and is ${taste.model} pulled?`;
+		}
+	}
+	if (taste.ollama) checkOllama();
+	async function meaningScores(cards: Card[]) {
+		if (!profileVecs) {
+			const w = wants(), l = lesses();
+			const [wv, lv] = await Promise.all([embed(w.map((x) => x.t)), embed(l.map((x) => x.t))]);
+			profileVecs = { want: wv.map((v, i) => ({ v, label: w[i].label })), less: lv.map((v, i) => ({ v, label: l[i].label })) };
+		}
+		const cv = await embed(cards.map(cardText));
+		return cv.map((v) => {
+			let best = { s: 0, label: '' }, worst = { s: 0, label: '' };
+			for (const x of profileVecs!.want) { const s = cos(v, x.v); if (s > best.s) best = { s, label: x.label }; }
+			for (const x of profileVecs!.less) { const s = cos(v, x.v); if (s > worst.s) worst = { s, label: x.label }; }
+			return { score: best.s - worst.s, best, worst };
+		});
+	}
+
+	type Pick = { card?: Card; why: string; score?: number; method?: string; compared?: number };
+	const taken = new Map<string, Pick>();
+	async function tastePick(queue: Card[]): Promise<Pick> {
+		if (!taste.strength || (!wants().length && !lesses().length)) return { card: queue[0], why: '' };
+		const pool = queue.slice(0, 1 + taste.strength * 2);
+		let scores: ReturnType<typeof wordScore>[], method = 'word match';
+		try {
+			if (!taste.ollama || !ollamaOk) throw 0;
+			scores = await meaningScores(pool); method = `${taste.model} on your computer`;
+		} catch { scores = pool.map(wordScore); }
+		let i = 0;
+		scores.forEach((x, j) => { if (x.score > scores[i].score) i = j; });
+		const x = scores[i];
+		const bits = [`your taste: best of ${pool.length} waiting (${method}), score ${x.score.toFixed(2)}`];
+		if (x.best.label && x.best.s > 0) bits.push(`closest to "${x.best.label}"`);
+		if (x.worst.label && x.worst.s > 0.0001) bits.push(`lowered by "${x.worst.label}"`);
+		return { card: pool[i], why: bits.join(', '), score: +x.score.toFixed(3), method, compared: pool.length };
+	}
+
+	// --- delivery log: everything shown, so you can check it
+	let deliveries = load<any[]>(LOG_KEY, []);
+	function logDelivery(card: Card, why: string) {
+		const t = taken.get(card.id); taken.delete(card.id);
+		deliveries.push({ at: new Date().toISOString(), id: card.id, source: SOURCES[card.src]?.name ?? card.src, title: card.title, link: card.link, image: card.img ?? null, why, taste: t?.score ?? null, method: t?.method ?? null });
+		if (deliveries.length > 3000) deliveries = deliveries.slice(-3000);
+		if (deliveries.length % 5 === 0) store(LOG_KEY, deliveries);
+	}
+	addEventListener('pagehide', () => store(LOG_KEY, deliveries));
+	const download = (name: string, data: unknown) => {
+		const a = document.createElement('a');
+		a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+		a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+	};
+	$('logExport').addEventListener('click', () => {
+		const hosts: Record<string, number> = {};
+		for (const e of performance.getEntriesByType('resource')) { try { const h = new URL(e.name).host; hosts[h] = (hosts[h] ?? 0) + 1; } catch {} }
+		store(LOG_KEY, deliveries);
+		download(`aishipped-delivery-log-${new Date().toISOString().slice(0, 10)}.json`, {
+			about: 'Every card shown on this device, newest last, and every server this page contacted since it was opened. Made in your browser; not sent anywhere.',
+			settings: { weights: weights(), blocklistLines: lines(blockBox.value).length, taste: { ...taste, savesUsed: taste.saves ? Math.min(saved.length, 60) : 0 } },
+			serversContactedThisVisit: Object.fromEntries(Object.entries(hosts).sort((a, b) => b[1] - a[1])),
+			deliveries,
+		});
+	});
+	$('tasteExport').addEventListener('click', () => download('aishipped-taste.json', { ...taste, saved }));
+	$('tasteImport').addEventListener('click', () => {
+		const f = document.createElement('input'); f.type = 'file'; f.accept = 'application/json,.json';
+		f.onchange = async () => {
+			try {
+				const d = JSON.parse(await f.files![0].text());
+				taste = { ...tasteDefault, ...Object.fromEntries(Object.entries(d).filter(([k]) => k in tasteDefault)) } as Taste;
+				if (Array.isArray(d.saved)) { saved = d.saved.filter((x: any) => x && x.id && x.title && x.link); store(S_KEY, saved); renderSaved(); }
+				store(T_KEY, taste); showTaste(); profileVecs = null; if (taste.ollama) checkOllama();
+			} catch { tStatus.textContent = ' that file is not a profile from this page.'; }
+		};
+		f.click();
+	});
 
 	// ---- rendering ----------------------------------------------------------
 
@@ -1001,7 +1180,7 @@ const sources = [
 	const SEEN_KEY = 'aishipped.feed.seen';
 	const seen = new Set<string>(load<string[]>(SEEN_KEY, []));
 	const remember = () => store(SEEN_KEY, [...seen].slice(-20000));
-	let saved = load<{ id: string; title: string; link: string; src: string }[]>(S_KEY, []);
+	let saved = load<{ id: string; title: string; link: string; src: string; text?: string }[]>(S_KEY, []);
 	let shown = 0;
 	let chapter = 1;
 	let sinceBreak = 0;
@@ -1021,6 +1200,7 @@ const sources = [
 
 	function render(card: Card, why: string) {
 		seen.add(card.id);
+		logDelivery(card, why);
 		const art = el('article', `card src-${card.src}`);
 		art.dataset.id = card.id;
 		art.dataset.blockText = [card.title, card.sub, card.body, card.imgAlt, card.credit].filter(Boolean).join(' \n ');
@@ -1144,7 +1324,7 @@ const sources = [
 	const isSaved = (id: string) => saved.some((s) => s.id === id);
 	function toggleSave(card: Card, btn: HTMLButtonElement) {
 		if (isSaved(card.id)) saved = saved.filter((s) => s.id !== card.id);
-		else saved.unshift({ id: card.id, title: card.title, link: card.link, src: SOURCES[card.src]?.name ?? card.src });
+		else saved.unshift({ id: card.id, title: card.title, link: card.link, src: SOURCES[card.src]?.name ?? card.src, text: cardText(card).slice(0, 600) });
 		store(S_KEY, saved);
 		btn.textContent = isSaved(card.id) ? '★ saved' : '☆ save';
 		renderSaved();
@@ -1321,6 +1501,10 @@ const sources = [
 	.rawtoggle b { color: var(--amber); }
 	.panel.raw .slider:has(input[data-src="featured"]), .panel.raw .slider:has(input[data-src="today"]), .panel.raw .slider:has(input[data-src="hn"]),
 	.panel.raw .slider:has(input[data-src="fedi"]), .panel.raw .slider:has(input[data-src="space"]), .panel.raw .slider:has(input[data-src="amour"]) { opacity: 0.4; }
+	.taste-h { margin-top: 22px; }
+	.taste-h small { color: var(--dim); font-weight: 400; font-size: 0.7rem; }
+	#tasteWant, #tasteLess { width: 100%; font: 0.78rem/1.4 var(--mono); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px; resize: vertical; }
+	#tasteModel { font: 0.78rem var(--mono); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; }
 	#blocklist { width: 100%; font: 0.78rem/1.4 var(--mono); background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px; resize: vertical; }
 	.slider input { accent-color: var(--green); width: 100%; }
 	.row { display: flex; gap: 8px; justify-content: flex-end; margin: 8px 0 0; }
