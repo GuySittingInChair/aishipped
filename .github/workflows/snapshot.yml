@@ -1,0 +1,27 @@
+# Refresh the feed's downloaded batches (public/data) once a week and commit them, so the site is built only
+# from what is in the repo and its fingerprints can be checked. Run it by hand from the Actions tab any time.
+name: snapshot
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write       # start the fingerprint workflow (pushes made here don't trigger it on their own)
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: node scripts/snapshot.mjs
+      - name: commit if anything changed
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          git add public/data
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "feed: weekly snapshot of the slow sources"
+          git push
+          gh workflow run fingerprint.yml --ref main

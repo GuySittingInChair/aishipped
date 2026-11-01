@@ -1,5 +1,16 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import { execSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+
+// The commit this build came from, written to /build.txt so anyone can look up GitHub's fingerprints for it
+// (scripts/verify-live.mjs). Vercel and GitHub Actions both name the commit; a local build asks git.
+const COMMIT = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA
+	|| (() => { try { return execSync('git rev-parse HEAD').toString().trim(); } catch { return 'unknown'; } })();
+const buildStamp = {
+	name: 'build-stamp',
+	hooks: { 'astro:build:done': ({ dir }) => writeFileSync(new URL('build.txt', dir), COMMIT + '\n') },
+};
 
 // The only servers the pages may fetch from: the public collections behind the feed, and Ollama on the
 // visitor's own computer. Anything else (an injected tracker, a swapped-in script) is refused by the browser.
@@ -16,6 +27,7 @@ const API = [
 
 // https://astro.build/config
 export default defineConfig({
+	integrations: [buildStamp],
 	// inline the CSS so the page paints without a second round trip
 	build: { inlineStylesheets: 'always' },
 	// and the script: one request for the whole page

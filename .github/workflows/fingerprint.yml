@@ -1,0 +1,38 @@
+# Build every commit to main here on GitHub, independently of Vercel, and publish a signed SHA-256 of each
+# file on the `fingerprints` branch. scripts/verify-live.mjs compares the live site against it.
+name: fingerprint
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: fingerprint
+permissions:
+  contents: write      # push to the fingerprints branch
+  id-token: write      # sign with GitHub's identity (Sigstore)
+  attestations: write
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }   # same major as the Vercel project
+      - run: npm ci
+      - run: npx astro build
+      - run: node scripts/fingerprint.mjs > "$RUNNER_TEMP/$GITHUB_SHA.json"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ runner.temp }}/${{ github.sha }}.json
+      - name: publish to the fingerprints branch
+        run: |
+          git config user.name github-actions && git config user.email github-actions@users.noreply.github.com
+          cd "$RUNNER_TEMP" && rm -rf fp
+          if git -C "$GITHUB_WORKSPACE" ls-remote --exit-code origin fingerprints >/dev/null; then
+            git clone --depth 1 --branch fingerprints "$(git -C "$GITHUB_WORKSPACE" remote get-url origin)" fp
+          else
+            git init -b fingerprints fp && git -C fp remote add origin "$(git -C "$GITHUB_WORKSPACE" remote get-url origin)"
+          fi
+          git -C "$GITHUB_WORKSPACE" config --get-regexp '^http\..*extraheader' | while read k v; do git -C fp config "$k" "$v"; done
+          mkdir -p fp/builds && cp "$GITHUB_SHA.json" fp/builds/
+          git -C fp add builds && git -C fp -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "fingerprints for $GITHUB_SHA"
+          git -C fp push origin fingerprints

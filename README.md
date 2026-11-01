@@ -1,43 +1,42 @@
-# Astro Starter Kit: Minimal
+# aishipped.lol
+
+An explainer on the attention economy, an opt-out checklist, and a feed that isn't farming you.
+Astro, deployed by Vercel from `main`.
+
+## Check that the live site is this source
+
+Every file on aishipped.lol should be exactly what this repository builds to. You can check that without
+trusting the site or Vercel:
 
 ```sh
-npm create astro@latest -- --template minimal
+git clone https://github.com/GuySittingInChair/aishipped && cd aishipped
+node scripts/verify-live.mjs          # pages, scripts and feed data
+node scripts/verify-live.mjs --all    # also the music files (~250 MB)
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+How it works:
 
-## 🚀 Project Structure
+1. The site names the commit it was built from at `/build.txt`.
+2. On every commit to `main`, GitHub Actions builds the site itself (`.github/workflows/fingerprint.yml`),
+   records the SHA-256 of every file, signs that list with GitHub's identity (Sigstore build provenance),
+   and publishes it on the [`fingerprints`](https://github.com/GuySittingInChair/aishipped/tree/fingerprints/builds) branch.
+3. The script downloads every file from the site and compares it with GitHub's list. Any file that was
+   changed, added in transit or swapped at the host shows up as a mismatch.
 
-Inside of your Astro project, you'll see the following folders and files:
+The build is reproducible: it uses only what is in the repo. The feed's downloaded batches (`public/data`)
+are refreshed weekly by `.github/workflows/snapshot.yml` and committed, screened against
+`src/data/blocklist.txt`.
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+What this does not cover: `/api/src`, a small relay function that runs on Vercel and fetches from public
+sources when the feed's built-in copies are missing. Its code is in `api/src.js`, but what it returns
+can't be checked this way.
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Commands
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+| Command                            | Action                                              |
+| :--------------------------------- | :-------------------------------------------------- |
+| `npm install`                      | Install dependencies                                |
+| `npm run dev`                      | Local dev server at `localhost:4321`                |
+| `npm run build`                    | Build to `./dist/` (offline, from the repo only)    |
+| `npm run snapshot`                 | Re-download the feed's batches into `public/data`   |
+| `npm run verify`                   | Check the live site against GitHub's fingerprints   |

@@ -7,10 +7,11 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "node scripts/snapshot.mjs && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "snapshot": "node scripts/snapshot.mjs"
+    "snapshot": "node scripts/snapshot.mjs",
+    "verify": "node scripts/verify-live.mjs"
   },
   "dependencies": {
     "astro": "^7.4.2"
