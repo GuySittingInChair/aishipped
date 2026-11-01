@@ -19,19 +19,19 @@ const sources = [
 	['nature', 'nature', 'the most-loved wildlife photos on iNaturalist, identified by people who know', 3],
 	['featured', 'wikipedia: best of', 'featured articles, pictures of the day, "did you know" and on-this-day, from a random day since 2016', 3],
 	['random', 'wikipedia: random', 'a truly random article. most are small. some are wonderful', 2],
-	['poems', 'poems', 'short public-domain poems', 2],
+	['poems', 'poems', 'off by default: short public-domain poems, mostly old English-language poets', 0],
 	['automata', 'automata', 'one-dimensional cellular automata drawn on your own machine', 1],
 	['photos', 'photos', 'featured pictures on Wikimedia Commons, voted the best of 100 million files', 3],
 	['history', 'old photos', 'photographs from the Library of Congress, mostly 1860s–1960s', 2],
 	['books', 'books', 'classic and well-loved books from Open Library, by subject', 2],
 	['planet', 'the planet right now', 'earthquakes from the last day, live from the US Geological Survey', 1],
-	['fedi', 'fediverse', 'posts people are boosting on mastodon.social right now', 1],
+	['fedi', 'fediverse', 'off by default: posts people are boosting on mastodon.social right now, often tech and news chatter', 0],
 	['films', 'old films', 'public-domain films from the Prelinger Archives: ads, newsreels, how-to films, 1910s–1970s. tap to play', 2],
 	['met', 'the met', 'public-domain art and objects from the Metropolitan Museum of Art in New York: 5,000 years of it', 2],
 	['gutenberg', 'free books', 'whole books you can read free on Project Gutenberg, from its 79,000', 2],
 	['records', 'old records', '78rpm records from the 1900s–1950s, digitised by the Internet Archive. tap to play', 2],
 	['cyber', 'security', 'cybersecurity: vulnerabilities attackers are really using (CISA), and how attacks work (MITRE ATT&CK, CAPEC)', 2],
-	['today', 'today', "what the world is reading on Wikipedia right now, and today's news", 1],
+	['today', 'today', "off by default: what the world is reading on Wikipedia right now, and today's news", 0],
 	['design', 'design', 'textiles, posters, ceramics, jewellery and dress from the V&A in London', 2],
 	['curious', 'curiosities', 'old medical, botanical and scientific images from the Wellcome Collection', 2],
 	['europe', 'europe’s museums', 'open-licensed images from thousands of European museums, libraries and archives via Europeana', 2],
@@ -93,7 +93,7 @@ const sources = [
 	<aside id="tune" class="panel" hidden>
 		<h2>tune</h2>
 		<label class="rawtoggle">
-			<input type="checkbox" id="raw" checked />
+			<input type="checkbox" id="raw" />
 			<span><b>uncurated</b>: every card is a random pick from a source's <em>whole</em> collection, not from anyone's selection
 			(no featured lists, no most-voted, no trending, no museum highlights, no topic lists chosen by me). Sources that are
 			nothing but someone's picks switch off. Expect it to be stranger and plainer: that is what an unedited archive looks like.</span>
@@ -881,7 +881,7 @@ const sources = [
 	// collection, and switches off sources that only exist as somebody's picks.
 	const R_KEY = 'aishipped.feed.raw';
 	const rawBox = document.getElementById('raw') as HTMLInputElement;
-	rawBox.checked = load<boolean>(R_KEY, true);
+	rawBox.checked = load<boolean>(R_KEY, false);
 	const isRaw = () => rawBox.checked;
 	const RAW: Record<string, (() => Promise<Card[]>) | null> = {
 		featured: null, today: null, hn: null, fedi: null, space: null, amour: null,
@@ -949,6 +949,15 @@ const sources = [
 
 	const sliders = [...document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')];
 	const chapterInput = document.getElementById('chapterLen') as HTMLInputElement;
+	// v2: news, fediverse and poems off, and the feed served from this site's own screened copies, even for
+	// browsers that saved settings before those became the defaults. Runs once; later tuning is kept.
+	const V_KEY = 'aishipped.feed.v';
+	if (load<number>(V_KEY, 0) < 2) {
+		const w = load<Record<string, number>>(W_KEY, {});
+		if (Object.keys(w).length) store(W_KEY, { ...w, poems: 0, today: 0, fedi: 0 });
+		store(R_KEY, false); rawBox.checked = false;
+		store(V_KEY, 2);
+	}
 	const savedWeights = load<Record<string, number>>(W_KEY, {});
 	for (const s of sliders) if (savedWeights[s.dataset.src!] != null) s.value = String(savedWeights[s.dataset.src!]);
 	if (savedWeights.chapter) chapterInput.value = String(savedWeights.chapter);
@@ -962,8 +971,17 @@ const sources = [
 	for (const s of [...sliders, chapterInput]) s.addEventListener('input', saveWeights);
 	const blockBox = document.getElementById('blocklist') as HTMLTextAreaElement;
 	blockBox.value = load<string>(B_KEY, DEFAULT_BLOCK);
-	// an edited list still picks up groups added to the default later
-	for (const g of DEFAULT_BLOCK.split(/\n(?=# )/)) if (!blockBox.value.includes(g.split('\n')[0])) blockBox.value += '\n' + g;
+	// an edited list still picks up every term added to the default later (not ones the person deleted:
+	// only terms that are new since the default this browser last saw get added)
+	{
+		const BD_KEY = 'aishipped.feed.blockDefault';
+		const lines = (t: string) => t.split('\n').map((x) => x.trim().toLowerCase()).filter(Boolean);
+		const before = new Set(lines(load<string>(BD_KEY, '')));
+		const have = new Set(lines(blockBox.value));
+		const add = lines(DEFAULT_BLOCK).filter((t) => !t.startsWith('#') && !have.has(t) && !before.has(t));
+		if (add.length) blockBox.value += '\n# added since you last visited\n' + add.join('\n');
+		store(BD_KEY, DEFAULT_BLOCK);
+	}
 	setBlock(blockBox.value);
 	strictBox.addEventListener('change', () => { store(ST_KEY, strictBox.checked); applyBlock(); });
 	const applyBlock = () => {
@@ -1059,7 +1077,13 @@ const sources = [
 			if (shown < 2) img.fetchPriority = 'high'; img.decoding = 'async';
 			img.referrerPolicy = 'no-referrer';
 			img.onload = () => fig.classList.add('loaded');
-			img.onerror = () => fig.remove();
+			img.onerror = () => {
+				// a film or record still plays without its thumbnail: keep a plain play button
+				if (card.embed) { img.remove(); fig.classList.add('noimg', 'loaded'); return; }
+				// a picture card with nothing much else to it is useless without the picture
+				if ((card.body?.length ?? 0) < 120) { art.remove(); return; }
+				fig.remove();
+			};
 			fig.append(img);
 			art.append(fig);
 		}
@@ -1297,6 +1321,7 @@ const sources = [
 		content: '▶'; position: absolute; inset: 0; display: grid; place-items: center;
 		font-size: 3rem; color: #fff; text-shadow: 0 2px 12px #000;
 	}
+	:global(.card figure.noimg) { aspect-ratio: 16 / 9; background: #111; }
 	:global(.card iframe) { display: block; width: 100%; aspect-ratio: 4 / 3; border: 0; }
 	:global(.card canvas) {
 		display: block; width: calc(100% + 32px); margin: 0 -16px 12px;
