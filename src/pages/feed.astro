@@ -20,7 +20,6 @@ const sources = [
 	['featured', 'wikipedia: best of', 'featured articles, pictures of the day, "did you know" and on-this-day, from a random day since 2016', 3],
 	['random', 'wikipedia: random', 'a truly random article. most are small. some are wonderful', 2],
 	['poems', 'poems', 'off by default: short public-domain poems, mostly old English-language poets', 0],
-	['automata', 'automata', 'one-dimensional cellular automata drawn on your own machine', 1],
 	['photos', 'photos', 'featured pictures on Wikimedia Commons, voted the best of 100 million files', 3],
 	['history', 'old photos', 'photographs from the Library of Congress, mostly 1860s–1960s', 2],
 	['books', 'books', 'classic and well-loved books from Open Library, by subject', 2],
@@ -206,7 +205,7 @@ const sources = [
 	const strictBox = document.getElementById('strict') as HTMLInputElement;
 	strictBox.checked = load<boolean>(ST_KEY, true);
 	const checkable = (c: Card) => [c.title, c.sub, c.body, c.imgAlt].filter(Boolean).join(' ').length >= 25;
-	const blocked = (c: Card) => (strictBox.checked && c.src !== 'automata' && !checkable(c))
+	const blocked = (c: Card) => (strictBox.checked && !checkable(c))
 		|| (!!blockRe && blockRe.test([c.title, c.sub, c.body, c.imgAlt, c.credit, c.extra?.[1]].filter(Boolean).join(' \n ')));
 
 	// ---- sources ------------------------------------------------------------
@@ -744,48 +743,7 @@ const sources = [
 		});
 	}
 
-	const RULES = [18, 22, 30, 45, 54, 57, 60, 62, 73, 75, 86, 89, 90, 99, 101, 105, 106, 109, 110, 120, 122, 124, 126, 129, 135, 137, 146, 147, 149, 150, 153, 161, 165, 169, 182, 193, 195, 225];
-	function automatonCard(rule: number, seedKind: number): Card {
-		const bits = rule.toString(2).padStart(8, '0');
-		const table = ['111', '110', '101', '100', '011', '010', '001', '000'].map((k, i) => `${k}→${bits[i]}`).join('  ');
-		const seedName = ['one live cell', 'random noise', 'a few scattered cells'][seedKind];
-		return {
-			id: `ca:${rule}:${seedKind}:${Math.random()}`,
-			src: 'automata',
-			title: `rule ${rule}`,
-			sub: `starting from ${seedName}`,
-			body: `Each row is made from the row above with only these eight rules, reading each cell and its two neighbours:\n${table}\nNo one designed this picture; it falls out of the number ${rule}.`,
-			link: `https://mathworld.wolfram.com/ElementaryCellularAutomaton.html`,
-			linkText: 'how it works',
-			draw: (c) => {
-				const cols = 240, rows = 150;
-				c.width = cols; c.height = rows;
-				const g = c.getContext('2d')!;
-				const css = getComputedStyle(document.documentElement);
-				const hue = rand(360);
-				g.fillStyle = css.getPropertyValue('--panel') || '#111';
-				g.fillRect(0, 0, cols, rows);
-				let row = new Uint8Array(cols);
-				if (seedKind === 0) row[cols >> 1] = 1;
-				else if (seedKind === 1) row = row.map(() => +(Math.random() < 0.5));
-				else for (let i = 0; i < 6; i++) row[rand(cols)] = 1;
-				for (let y = 0; y < rows; y++) {
-					g.fillStyle = `hsl(${(hue + y * 0.6) % 360} 90% 70%)`;
-					for (let x = 0; x < cols; x++) if (row[x]) g.fillRect(x, y, 1, 1);
-					const next = new Uint8Array(cols);
-					for (let x = 0; x < cols; x++) {
-						const k = (row[(x + cols - 1) % cols] << 2) | (row[x] << 1) | row[(x + 1) % cols];
-						next[x] = (rule >> k) & 1;
-					}
-					row = next;
-				}
-			},
-			more: async () => [0, 1, 2].filter((s) => s !== seedKind).map((s) => automatonCard(rule, s)),
-		};
-	}
-	async function automata() {
-		return Array.from({ length: 4 }, () => automatonCard(pick(RULES), rand(3)));
-	}
+
 
 	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
 
@@ -929,7 +887,7 @@ const sources = [
 		document.getElementById('tune')!.classList.toggle('raw', rawBox.checked);
 	});
 
-	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, automata, hn, amour, design, curious, europe, travel, films, today, nasa, photos, met, gutenberg, records, cyber, history, books, planet, fedi };
+	const fills: Record<string, () => Promise<Card[]>> = { art, nature, featured, random, space, poems, hn, amour, design, curious, europe, travel, films, today, nasa, photos, met, gutenberg, records, cyber, history, books, planet, fedi };
 	for (const input of document.querySelectorAll<HTMLInputElement>('#tune input[data-src]')) {
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
@@ -1340,7 +1298,6 @@ const sources = [
 	:global(.card .foot) { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0; font-size: 0.82rem; }
 	:global(.card .foot button) { padding: 2px 8px; font-size: 0.8rem; }
 	:global(.card .credit) { color: var(--dim); font-size: 0.7rem; margin: 8px 0 0; }
-	:global(.src-automata canvas) { background: var(--panel); }
 
 	:global(.chapter) { text-align: center; padding: 28px 0; color: var(--dim); border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
 	:global(.chapter .big) { color: var(--green); font-size: 1.1rem; margin: 0 0 4px; }
