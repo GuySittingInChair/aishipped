@@ -144,7 +144,9 @@ const sources = [
 			<input type="checkbox" id="tasteOllama" />
 			<span><b>use the model on my computer</b>: match by meaning instead of exact words, with
 			<input id="tasteModel" value="nomic-embed-text" size="16" spellcheck="false" /> through Ollama at localhost.
-			One time: <code>ollama pull nomic-embed-text</code>, then start Ollama with <code>OLLAMA_ORIGINS=https://aishipped.lol ollama serve</code>.
+			One time: <code>ollama pull nomic-embed-text</code>, then let this site reach Ollama by setting
+			<code>OLLAMA_ORIGINS=https://aishipped.lol</code> where Ollama starts: in its service settings if it runs in the
+			background (on NixOS, <code>services.ollama.environmentVariables</code>), or as <code>OLLAMA_ORIGINS=https://aishipped.lol ollama serve</code> if you start it by hand.
 			<em id="tasteStatus"></em></span>
 		</label>
 		<p class="row"><button id="tasteExport">download my profile</button> <button id="tasteImport">load a profile</button> <button id="logExport">download delivery log</button></p>
@@ -1063,7 +1065,9 @@ const sources = [
 
 	// --- word matching: always available, nothing leaves the page
 	const STOP = new Set('the a an and or of in on at to for with from by is are was were be this that it its as into over under old new'.split(' '));
-	const toks = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => w.length > 2 && !STOP.has(w));
+	// "birds" and "bird" count as the same word, like the never-show list
+	const stem = (w: string) => w.length < 4 ? w : w.replace(/ies$/, 'y').replace(/(ss|x|ch|sh)es$/, '$1').replace(/([^s])s$/, '$1');
+	const toks = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => w.length > 2 && !STOP.has(w)).map(stem);
 	function wordScore(c: Card) {
 		const have = new Set(toks(cardText(c)));
 		const hit = (t: string) => { const w = toks(t); return w.length ? w.filter((x) => have.has(x)).length / w.length : 0; };
@@ -1096,10 +1100,11 @@ const sources = [
 			await embed(['test']);
 			ollamaOk = true; tStatus.textContent = ` connected: ${taste.model} is running on this computer.`;
 		} catch {
-			ollamaOk = false; tStatus.textContent = ` not reachable, so matching by words instead. Is Ollama running with OLLAMA_ORIGINS set, and is ${taste.model} pulled?`;
+			ollamaOk = false; tStatus.textContent = ` not reachable, so matching by words instead. Is Ollama running, does its OLLAMA_ORIGINS include ${location.origin}, and is ${taste.model} pulled?`;
 		}
 	}
 	if (taste.ollama) checkOllama();
+	const LESS_BAR = 0.6; // with nothing under "more of this": how alike a card must be to a "less" line to be lowered
 	async function meaningScores(cards: Card[]) {
 		if (!profileVecs) {
 			const w = wants(), l = lesses();
@@ -1111,7 +1116,11 @@ const sources = [
 			let best = { s: 0, label: '' }, worst = { s: 0, label: '' };
 			for (const x of profileVecs!.want) { const s = cos(v, x.v); if (s > best.s) best = { s, label: x.label }; }
 			for (const x of profileVecs!.less) { const s = cos(v, x.v); if (s > worst.s) worst = { s, label: x.label }; }
-			return { score: best.s - worst.s, best, worst };
+			// the model finds every pair of texts a little alike, so a "less" line only counts (and is only
+			// named) when the card is closer to it than to anything in "more of this"
+			const over = profileVecs!.want.length ? worst.s - best.s : worst.s - LESS_BAR;
+			const lowered = over > 0 ? { s: over, label: worst.label } : { s: 0, label: '' };
+			return { score: best.s - lowered.s, best, worst: lowered };
 		});
 	}
 
@@ -1143,14 +1152,18 @@ const sources = [
 		if (deliveries.length % 5 === 0) store(LOG_KEY, deliveries);
 	}
 	addEventListener('pagehide', () => store(LOG_KEY, deliveries));
+	// every server contacted: counted as requests happen, because the browser's own list stops at 250 entries
+	const hosts: Record<string, number> = {};
+	const countHosts = (es: PerformanceEntryList) => { for (const e of es) { try { const h = new URL(e.name).host; hosts[h] = (hosts[h] ?? 0) + 1; } catch {} } };
+	try { new PerformanceObserver((l) => countHosts(l.getEntries())).observe({ type: 'resource', buffered: true }); }
+	catch { countHosts(performance.getEntriesByType('resource')); }
+	performance.setResourceTimingBufferSize?.(100000);
 	const download = (name: string, data: unknown) => {
 		const a = document.createElement('a');
 		a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
 		a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 	};
 	$('logExport').addEventListener('click', () => {
-		const hosts: Record<string, number> = {};
-		for (const e of performance.getEntriesByType('resource')) { try { const h = new URL(e.name).host; hosts[h] = (hosts[h] ?? 0) + 1; } catch {} }
 		store(LOG_KEY, deliveries);
 		download(`aishipped-delivery-log-${new Date().toISOString().slice(0, 10)}.json`, {
 			about: 'Every card shown on this device, newest last, and every server this page contacted since it was opened. Made in your browser; not sent anywhere.',
