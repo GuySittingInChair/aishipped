@@ -23,3 +23,6 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 .vercel
+
+# your personal pack (npm run pack): stays on this computer
+/pack/

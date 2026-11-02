@@ -103,6 +103,16 @@ const sources = [
 			nothing but someone's picks switch off. Expect it to be stranger and plainer: that is what an unedited archive looks like.</span>
 		</label>
 		<label class="rawtoggle">
+			<input type="checkbox" id="packOnly" />
+			<span><b>my pack</b>: only cards you've kept from your own pack on this computer, nothing else. It's built from
+			collections you allow and judged by your own model (<code>npm run pack</code>), then reviewed by you
+			(<code>npm run pack:serve</code>, keep or toss each card). <em id="packStatus"></em></span>
+		</label>
+		<label class="rawtoggle">
+			<input type="checkbox" id="captions" />
+			<span><b>captions</b>: show your pack's descriptions on every card. Off, a pack card is its picture and title; tap it for the rest.</span>
+		</label>
+		<label class="rawtoggle">
 			<input type="checkbox" id="strict" checked />
 			<span><b>strict</b>: a card with too little text to check against your never-show list (an untitled picture, say) is
 			not shown. Everything downloaded ahead of time was also screened against the whole list, every field, before it got here.</span>
@@ -915,7 +925,8 @@ const sources = [
 		poems: async () => (await getJSON('https://poetrydb.org/random/20/title,author,lines,linecount')).filter(short).map(poemCard),
 		random: async () => (await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random')).filter((c) => (c.body?.length ?? 0) > 250),
 	};
-	const enabled = (id: string) => !(isRaw() && RAW[id] === null);
+	// with "my pack" on, nothing but the pack: no other source is even asked
+	const enabled = (id: string) => (packBox.checked ? id === 'pack' : !(isRaw() && RAW[id] === null));
 	rawBox.addEventListener('change', () => {
 		store(R_KEY, rawBox.checked);
 		for (const [id, x] of Object.entries(SOURCES)) { x.queue = []; x.fails = 0; if (enabled(id) && weights()[id] > 0) refill(id); }
@@ -927,6 +938,40 @@ const sources = [
 		const id = input.dataset.src!;
 		SOURCES[id] = { name: input.closest('label')!.querySelector('.name')!.firstChild!.textContent!.trim(), fill: fills[id], queue: [], fails: 0 };
 	}
+
+	// ---- your pack (served from this computer by scripts/pack/serve.mjs) ------------
+	const PACK = 'http://127.0.0.1:8790';
+	const PK_KEY = 'aishipped.feed.pack', CAP_KEY = 'aishipped.feed.captions';
+	const packBox = document.getElementById('packOnly') as HTMLInputElement;
+	const capBox = document.getElementById('captions') as HTMLInputElement;
+	const packStatus = document.getElementById('packStatus')!;
+	packBox.checked = load<boolean>(PK_KEY, false);
+	capBox.checked = load<boolean>(CAP_KEY, false);
+	SOURCES.pack = {
+		name: 'your pack',
+		fill: async () => {
+			try {
+				const r = await fetch(`${PACK}/api/cards?status=kept`, { signal: AbortSignal.timeout(5000) });
+				const got: any[] = await r.json();
+				packStatus.textContent = ` ${got.length} kept cards on this computer.`;
+				const fresh = got.filter((c) => !seen.has(`pack:${c.id}`));
+				if (!fresh.length) throw new Error(got.length ? 'all seen' : 'empty');
+				return shuffle(fresh.map((c): Card => ({ ...c, id: `pack:${c.id}`, src: 'pack', credit: [c.credit, c.from].filter(Boolean).join(' · ') })));
+			} catch (e) {
+				const why = (e as Error).message;
+				packStatus.textContent = why === 'all seen' ? ' You have seen every card you kept: build more, or press "forget what I\'ve seen".'
+					: why === 'empty' ? ' Your pack has no kept cards yet: review some at 127.0.0.1:8790.'
+					: ' Not reachable: run npm run pack:serve in the aishipped folder.';
+				throw e;
+			}
+		},
+		queue: [], fails: 0,
+	};
+	packBox.addEventListener('change', () => { store(PK_KEY, packBox.checked); location.reload(); });
+	capBox.addEventListener('change', () => {
+		store(CAP_KEY, capBox.checked);
+		for (const a of stream.querySelectorAll<HTMLElement>('.card.src-pack')) a.classList.toggle('quiet', !capBox.checked);
+	});
 
 	function refill(id: string) {
 		const s = SOURCES[id];
@@ -998,6 +1043,7 @@ const sources = [
 	syncOutputs();
 
 	function choose(exclude: Set<string>) {
+		if (packBox.checked) return exclude.has('pack') || SOURCES.pack.fails >= 3 ? null : { id: 'pack', why: 'from your pack: a card you kept, drawn at random' };
 		const w = weights();
 		const live = Object.entries(w).filter(([id, v]) => v > 0 && enabled(id) && !exclude.has(id) && SOURCES[id].fails < 3);
 		const total = live.reduce((n, [, v]) => n + v, 0);
@@ -1016,7 +1062,7 @@ const sources = [
 			if (s.queue.length < 3) refill(c.id);
 			if (!s.queue.length) {
 				// don't stall the feed on a slow source: try another one that's ready
-				const ready = Object.keys(SOURCES).some((id) => id !== c.id && weights()[id] > 0 && SOURCES[id].queue.length);
+				const ready = Object.keys(SOURCES).some((id) => id !== c.id && weights()[id] > 0 && enabled(id) && SOURCES[id].queue.length);
 				if (ready) { tried.add(c.id); continue; }
 				// nothing ready yet: wait for whichever source answers first, not just this one
 				const pending = Object.values(SOURCES).map((x) => x.pending).filter(Boolean);
@@ -1292,6 +1338,11 @@ const sources = [
 		}
 		art.append(foot);
 		if (card.credit) art.append(el('p', 'credit', card.credit));
+		if (card.src === 'pack') {
+			// your pack, captions off: the picture and its title, and the rest when you tap
+			art.classList.toggle('quiet', !capBox.checked);
+			art.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('a, button, iframe, figure')) art.classList.remove('quiet'); });
+		}
 		return art;
 	}
 
@@ -1495,6 +1546,8 @@ const sources = [
 	:global(.card .foot) { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0; font-size: 0.82rem; }
 	:global(.card .foot button) { padding: 2px 8px; font-size: 0.8rem; }
 	:global(.card .credit) { color: var(--dim); font-size: 0.7rem; margin: 8px 0 0; }
+	:global(.card.quiet .sub), :global(.card.quiet .body), :global(.card.quiet .credit) { display: none; }
+	:global(.card.quiet) { cursor: pointer; }
 
 	:global(.chapter) { text-align: center; padding: 28px 0; color: var(--dim); border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
 	:global(.chapter .big) { color: var(--green); font-size: 1.1rem; margin: 0 0 4px; }

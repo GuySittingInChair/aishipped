@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pack review</title>
+<style>
+	:root { --bg: #0d0f0e; --panel: #171a18; --text: #e6e8e3; --dim: #8b918a; --line: #2a2f2b; --keep: #6fd08c; --toss: #e0715f; }
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 ui-sans-serif, system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+	header { width: 100%; max-width: 760px; padding: 14px 16px 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+	h1 { font-size: 1rem; margin: 0; font-weight: 600; }
+	#count { color: var(--dim); font-size: 0.85rem; }
+	main { width: 100%; max-width: 760px; padding: 0 16px 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+	.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; touch-action: pan-y; transition: transform 0.18s, opacity 0.18s; }
+	.card img { display: block; width: 100%; max-height: 62vh; object-fit: contain; background: #000; }
+	.card .txt { padding: 12px 14px 14px; }
+	.card h2 { font-size: 1.1rem; margin: 0 0 4px; }
+	.sub, .from, .why { color: var(--dim); font-size: 0.85rem; margin: 2px 0; }
+	.body { font-size: 0.9rem; margin: 8px 0 0; max-height: 7.5em; overflow: hidden; }
+	.body.open { max-height: none; }
+	.why b { color: var(--text); font-weight: 500; }
+	.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+	button { font: inherit; padding: 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+	#toss { border-color: var(--toss); color: var(--toss); }
+	#keep { border-color: var(--keep); color: var(--keep); }
+	.hint { color: var(--dim); font-size: 0.8rem; text-align: center; margin: 0; }
+	.empty { color: var(--dim); text-align: center; padding: 48px 16px; }
+	code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+	@media (prefers-color-scheme: light) {
+		:root:not([data-theme="dark"]) { --bg: #f4f3ef; --panel: #ffffff; --text: #1c1e1b; --dim: #6b7069; --line: #dcdcd5; --keep: #2f8a4b; --toss: #b8442f; }
+	}
+</style>
+</head>
+<body>
+<header><h1>Your pack: review</h1><span id="count"></span></header>
+<main id="main"></main>
+<script>
+	const main = document.getElementById('main');
+	let queue = [];
+	const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+	async function stats() {
+		const s = await (await fetch('/api/stats')).json();
+		document.getElementById('count').textContent = `${s.review} waiting · ${s.kept} kept · ${s.rejected} turned away`;
+	}
+	function show() {
+		main.replaceChildren();
+		const c = queue[0];
+		if (!c) {
+			const e = el('div', 'empty');
+			e.append('Nothing waiting. Get more with ', el('code', '', 'npm run pack'), ', then reload. Your kept cards show in the feed when "my pack" is on.');
+			main.append(e);
+			return;
+		}
+		const card = el('div', 'card');
+		const img = el('img'); img.src = c.img; img.alt = c.imgAlt || c.title;
+		const txt = el('div', 'txt');
+		txt.append(el('h2', '', c.title));
+		if (c.sub) txt.append(el('p', 'sub', c.sub));
+		txt.append(el('p', 'from', c.from));
+		const why = el('p', 'why');
+		why.append('judge: ', el('b', '', c.judged?.reason || 'none'));
+		txt.append(why);
+		if (c.body) { const b = el('p', 'body', c.body); b.addEventListener('click', () => b.classList.toggle('open')); txt.append(b); }
+		card.append(img, txt);
+		// swipe: right keeps, left tosses
+		let x0 = null;
+		card.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
+		card.addEventListener('pointermove', (e) => { if (x0 !== null) card.style.transform = `translateX(${e.clientX - x0}px) rotate(${(e.clientX - x0) / 40}deg)`; });
+		card.addEventListener('pointerup', (e) => { const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 90) decide(dx > 0); else card.style.transform = ''; });
+		const buttons = el('div', 'buttons');
+		const toss = el('button', '', '✕ toss'); toss.id = 'toss'; toss.onclick = () => decide(false);
+		const keep = el('button', '', '✓ keep'); keep.id = 'keep'; keep.onclick = () => decide(true);
+		buttons.append(toss, keep);
+		main.append(card, buttons, el('p', 'hint', 'swipe, or ← / J to toss and → / K to keep'));
+	}
+	async function decide(keepIt) {
+		const c = queue.shift();
+		if (!c) return;
+		const card = main.querySelector('.card');
+		if (card) { card.style.transform = `translateX(${keepIt ? 120 : -120}%)`; card.style.opacity = '0'; }
+		await fetch('/api/verdict', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: c.id, keep: keepIt }) });
+		if (queue[1]) new Image().src = queue[1].img;
+		setTimeout(show, 150);
+		stats();
+	}
+	addEventListener('keydown', (e) => {
+		if (e.key === 'ArrowRight' || e.key === 'k') decide(true);
+		if (e.key === 'ArrowLeft' || e.key === 'j') decide(false);
+	});
+	(async () => { queue = await (await fetch('/api/cards?status=review')).json(); show(); stats(); })();
+</script>
+</body>
+</html>

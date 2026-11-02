@@ -11,7 +11,9 @@
     "preview": "astro preview",
     "astro": "astro",
     "snapshot": "node scripts/snapshot.mjs",
-    "verify": "node scripts/verify-live.mjs"
+    "verify": "node scripts/verify-live.mjs",
+    "pack": "node scripts/pack/build.mjs",
+    "pack:serve": "node scripts/pack/serve.mjs"
   },
   "dependencies": {
     "astro": "^7.4.2"
