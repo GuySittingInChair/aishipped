@@ -166,7 +166,7 @@ const sources = [
 		<p class="row"><button id="tasteExport">download my profile</button> <button id="tasteImport">load a profile</button> <button id="logExport">download delivery log</button></p>
 		<p class="desc">The delivery log is every card shown on this device: when, from where, the link, the image address, the reason and the taste score, plus every server this page has contacted. It is kept in this browser and downloaded as a file you can open and check.</p>
 		<p class="lede audit">
-			What decides the order: a random draw using the weights above, then, only if you turn taste strength up, a comparison
+			What decides the order: every chapter is sorted A to Z by title. Which cards make it into a chapter is a random draw using the weights above, then, only if you turn taste strength up, a comparison
 			against the profile you wrote, done in this browser or by your own computer's model. No server-side model, no profile anyone
 			else holds, no history of what you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
 			Some sources hand over their own popular lists (wildlife and Hacker News by votes, Mastodon trends, Wikipedia's most read),
@@ -1246,7 +1246,6 @@ const sources = [
 	let saved = load<{ id: string; title: string; link: string; src: string; text?: string }[]>(S_KEY, []);
 	let shown = 0;
 	let chapter = 1;
-	let sinceBreak = 0;
 	const t0 = Date.now();
 
 	const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, txt?: string) => {
@@ -1357,24 +1356,48 @@ const sources = [
 		return d;
 	}
 
-	// a steady pipeline: keep up to 8 cards in flight, top up whenever one lands, and never wait on the slowest
+	// A to Z: each chapter's cards are gathered first (up to 8 requests in flight, never waiting on the slowest
+	// source), then shown sorted by title, A to Z, with a letter heading wherever the first letter changes.
+	// Titles starting with a number come after Z (under "0–9"), then other scripts and symbols (under "#").
+	const sortKey = (c: Card) => (c.title ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase();
+	const letterOf = (k: string) => (/^[a-z]/.test(k) ? k[0].toUpperCase() : /^[0-9]/.test(k) ? '0–9' : '#');
+	const rank = (L: string) => (L === '0–9' ? 1 : L === '#' ? 2 : 0); // A–Z first, then titles starting with a number, then everything else
+	const byTitle = (a: Card, b: Card) => {
+		const ka = sortKey(a), kb = sortKey(b);
+		return rank(letterOf(ka)) - rank(letterOf(kb)) || ka.localeCompare(kb, 'en', { sensitivity: 'base', numeric: true });
+	};
 	let inFlight = 0;
+	const batch: [Card, string][] = [];
+	function flush() {
+		const cards = batch.splice(0).sort((x, y) => byTitle(x[0], y[0]));
+		let last = '';
+		for (const [card, why] of cards) {
+			const L = letterOf(sortKey(card));
+			if (L !== last) { stream.append(el('div', 'letter', L)); last = L; }
+			stream.append(render(card, `${why} · placed in A to Z order by its title`));
+			shown++;
+		}
+		document.getElementById('count')!.textContent = String(shown);
+		stream.append(chapterBreak());
+		remember();
+		if (nearBottom()) more();
+	}
 	function more(n = 8) {
 		const sentinel = document.getElementById('sentinel')!;
-		sentinel.textContent = 'loading…';
-		for (; inFlight < n; inFlight++) {
+		const want = +chapterInput.value;
+		sentinel.textContent = `gathering chapter ${chapter}: ${batch.length} of ${want} cards, then A to Z…`;
+		for (; inFlight < n && batch.length + inFlight < want; inFlight++) {
 			nextCard().then((next) => {
 				inFlight--;
 				if (!next) {
-					if (!shown) sentinel.textContent = 'every source is off or not answering. press tune.';
+					// sources ran dry: show what we have rather than wait forever
+					if (!inFlight && batch.length) flush();
+					else if (!shown && !batch.length && !inFlight) sentinel.textContent = 'every source is off or not answering. press tune.';
 					return;
 				}
-				stream.append(render(...next));
-				shown++; sinceBreak++;
-				document.getElementById('count')!.textContent = String(shown);
-				if (sinceBreak >= +chapterInput.value) { stream.append(chapterBreak()); sinceBreak = 0; }
-				if (shown % 8 === 0) remember();
-				if (nearBottom()) more();
+				if (!batch.some(([c]) => c.id === next[0].id)) batch.push(next);
+				if (batch.length >= +chapterInput.value) flush();
+				else more(n);
 			});
 		}
 	}
@@ -1552,6 +1575,7 @@ const sources = [
 	:global(.chapter) { text-align: center; padding: 28px 0; color: var(--dim); border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
 	:global(.chapter .big) { color: var(--green); font-size: 1.1rem; margin: 0 0 4px; }
 	:global(.chapter p) { margin: 0; }
+	:global(.letter) { color: var(--amber); font-size: 1.6rem; font-weight: bold; margin: 24px 0 4px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
 	#sentinel { text-align: center; color: var(--dim); padding: 40px 0; }
 
 	.panel {
