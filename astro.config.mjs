@@ -23,7 +23,7 @@ const API = [
 	'https://poetrydb.org', 'https://earthquake.usgs.gov', 'https://mastodon.social', 'https://hacker-news.firebaseio.com',
 	'https://images-api.nasa.gov',
 	'http://localhost:11434', 'http://127.0.0.1:11434',
-	'http://127.0.0.1:8790',   // your own pack (scripts/pack/serve.mjs)
+	'http://127.0.0.1:8793',   // your own pack (scripts/pack/serve.mjs)
 ];
 
 // https://astro.build/config
@@ -41,7 +41,7 @@ export default defineConfig({
 			directives: [
 				"default-src 'self'",
 				`connect-src 'self' ${API.join(' ')}`,
-				"img-src 'self' https: data: blob: http://127.0.0.1:8790",
+				"img-src 'self' https: data: blob: http://127.0.0.1:8793",
 				"media-src 'self' https: blob:",
 				"frame-src 'none'", // films and records open on archive.org itself
 				"font-src 'self'",

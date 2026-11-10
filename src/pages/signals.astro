@@ -1,0 +1,178 @@
+---
+import Base from '../layouts/Base.astro';
+import { WEIGHT, HALF_LIFE_DAYS, DWELL_FULL_SECS } from '../lib/taste';
+const kinds = [
+	['save', 'save', 'you pressed ☆ save on a card', `+${WEIGHT.save}`],
+	['more', 'more like this', 'you pressed ↳ more like this', `+${WEIGHT.more}`],
+	['open', 'link open', 'you opened a link from the card: its source, its play button or its extra link. Once per card per visit', `+${WEIGHT.open}`],
+	['dwell', 'time on screen', `the card was at least half in view for 2 seconds or more, with this tab in front. Grows with time up to a minute; however often you look at a card, it counts for at most ${WEIGHT.dwell}`, `up to +${WEIGHT.dwell}`],
+	['skip', 'fast skip', 'the card went up past the top of the window within 0.8 s of arriving, and you hadn\'t saved or opened it. Once per card per visit', `${WEIGHT.skip}`],
+	['notforme', 'not for me', 'you pressed ✕ not for me (the card is hidden; undo is right under it)', `${WEIGHT.notforme}`],
+];
+---
+
+<Base title="my signals · aishipped.lol" description="Everything the feed has noted about what you do, kept in your browser only.">
+	<main>
+		<p class="prompt"><a href="/feed">← the feed</a></p>
+		<h1>my signals</h1>
+		<p class="lede">
+			Everything <a href="/feed">the feed</a> has noted about what you do with its cards, to learn your taste. It is kept in this
+			browser's own database and never leaves it: there is no server that receives any of this. Switch a kind off and it is no
+			longer recorded <em>or</em> used; delete anything here and it's gone.
+		</p>
+
+		<h2>what is noted, and what each counts for</h2>
+		<table class="kinds">
+			<thead><tr><th>on</th><th>signal</th><th>when</th><th>counts</th><th>noted</th><th></th></tr></thead>
+			<tbody>
+				{kinds.map(([id, name, desc, w]) => (
+					<tr data-kind={id}>
+						<td><input type="checkbox" class="on" aria-label={`record and use ${name}`} /></td>
+						<td><b>{name}</b></td>
+						<td class="desc">{desc}</td>
+						<td class="num">{w}</td>
+						<td class="num count">0</td>
+						<td><button class="forgetKind">forget these</button></td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+		<p class="desc">
+			A card's signals are added up into one weight. Older ones count less: half after {HALF_LIFE_DAYS} days, a quarter after
+			{HALF_LIFE_DAYS * 2}. Your taste is then two averages of card meanings, one of the cards with a positive weight and one of the
+			negative, each card counting by its weight (the strongest 300 cards, plus what you wrote under <em>more of this</em> and
+			<em>less of this</em>, which count +2 and −2 and never fade). A waiting card's score is how alike it is to the first,
+			lowered only by how much closer it is to the second. Saves count most on purpose: they're the clearest thing you can tell it.
+			Time on screen counts least, because what holds your eye isn't always what you want (it reaches its {WEIGHT.dwell} at {DWELL_FULL_SECS} s).
+		</p>
+
+		<h2>your taste right now</h2>
+		<div class="cols">
+			<div><h3>pulling cards toward it</h3><ol id="top"></ol></div>
+			<div><h3>pushing cards away</h3><ol id="bottom"></ol></div>
+		</div>
+
+		<h2>every signal <small id="total"></small></h2>
+		<p class="row">
+			<button id="export">download all as a file</button>
+			<button id="forgetAll" class="danger">forget all signals</button>
+		</p>
+		<table class="log">
+			<thead><tr><th>when</th><th>signal</th><th>card</th><th>source</th><th>counts now</th><th></th></tr></thead>
+			<tbody id="rows"></tbody>
+		</table>
+		<p class="row"><button id="showAll" hidden>show all</button></p>
+	</main>
+</Base>
+
+<script>
+	import * as SIG from '../lib/signals';
+	import * as T from '../lib/taste';
+	const $ = (id: string) => document.getElementById(id)!;
+	const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', txt?: string) => {
+		const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e;
+	};
+	let on = SIG.loadOn();
+	let limit = 300;
+	const when = (t: number) => {
+		const d = (Date.now() - t) / 1000;
+		return d < 60 ? 'just now' : d < 3600 ? `${Math.floor(d / 60)} min ago` : d < 86400 ? `${Math.floor(d / 3600)} h ago` : new Date(t).toLocaleDateString();
+	};
+	const f2 = (x: number) => (x > 0 ? '+' : '') + x.toFixed(2);
+
+	async function draw() {
+		const all = await SIG.all();
+		const now = Date.now();
+		for (const tr of document.querySelectorAll<HTMLTableRowElement>('.kinds tr[data-kind]')) {
+			const k = tr.dataset.kind as T.Kind;
+			tr.querySelector<HTMLInputElement>('.on')!.checked = on[k];
+			tr.querySelector('.count')!.textContent = String(all.filter((s) => s.kind === k).length);
+			tr.classList.toggle('off', !on[k]);
+		}
+		const items = T.cardWeights(all, now, on);
+		const fill = (ol: HTMLElement, xs: T.Item[], empty: string) => {
+			ol.replaceChildren(...xs.map((x) => {
+				const li = el('li');
+				li.append(el('span', 'w', f2(x.w)), ` ${x.title} `, el('span', 'dim', `(${x.kinds.map((k) => T.KIND_LABEL[k]).join(', ')})`));
+				return li;
+			}));
+			if (!xs.length) ol.append(el('li', 'dim', empty));
+		};
+		fill($('top'), items.filter((x) => x.w > 0).sort((a, b) => b.w - a.w).slice(0, 15), 'nothing yet: save, open or ask for more of a card');
+		fill($('bottom'), items.filter((x) => x.w < 0).sort((a, b) => a.w - b.w).slice(0, 10), 'nothing yet');
+		$('total').textContent = `${all.length} in this browser`;
+		const rows = all.sort((a, b) => b.at - a.at);
+		$('rows').replaceChildren(...rows.slice(0, limit).map((s) => {
+			const tr = el('tr');
+			if (!on[s.kind]) tr.className = 'off';
+			const w = T.signalWeight(s, now);
+			const kind = T.KIND_LABEL[s.kind] + (s.kind === 'dwell' ? ` ${s.secs ?? 0} s` : s.kind === 'skip' ? ` ${s.secs ?? 0} s` : '');
+			const x = el('button', 'x', '×');
+			x.setAttribute('aria-label', 'delete this signal');
+			x.addEventListener('click', async () => { await SIG.remove(s.id!); SIG.changed(); draw(); });
+			const title = el('td', '', s.title);
+			if (s.note) title.append(el('span', 'dim', ` (${s.note})`));
+			tr.append(el('td', 'dim', when(s.at)), el('td', '', kind), title, el('td', 'dim', s.src), el('td', 'num', on[s.kind] ? f2(w) : 'off'), el('td', '', ''));
+			tr.lastElementChild!.append(x);
+			return tr;
+		}));
+		if (!rows.length) $('rows').append(Object.assign(el('tr'), { innerHTML: '<td colspan="6" class="dim">nothing noted yet. Scroll <a href="/feed">the feed</a>.</td>' }));
+		$('showAll').hidden = rows.length <= limit;
+	}
+
+	for (const tr of document.querySelectorAll<HTMLTableRowElement>('.kinds tr[data-kind]')) {
+		const k = tr.dataset.kind as T.Kind;
+		tr.querySelector<HTMLInputElement>('.on')!.addEventListener('change', (e) => { on[k] = (e.target as HTMLInputElement).checked; SIG.storeOn(on); SIG.changed(); draw(); });
+		tr.querySelector('.forgetKind')!.addEventListener('click', async () => {
+			if (!confirm(`Delete every "${T.KIND_LABEL[k]}" signal?`)) return;
+			await SIG.removeWhere((s) => s.kind !== k); SIG.changed(); draw();
+		});
+	}
+	$('forgetAll').addEventListener('click', async () => {
+		if (!confirm('Delete every signal in this browser? Your saved list and settings stay.')) return;
+		await SIG.clear(); SIG.changed(); draw();
+	});
+	$('showAll').addEventListener('click', () => { limit = Infinity; draw(); });
+	$('export').addEventListener('click', async () => {
+		const a = document.createElement('a');
+		const data = { about: 'Every signal the aishipped.lol feed noted in this browser. Made in your browser; not sent anywhere.', weights: T.WEIGHT, halfLifeDays: T.HALF_LIFE_DAYS, switchedOn: on, signals: await SIG.all() };
+		a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+		a.download = `aishipped-signals-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+		setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+	});
+	SIG.onChange(() => { on = SIG.loadOn(); draw(); });
+	draw();
+</script>
+
+<style>
+	main { max-width: 980px; margin: 0 auto; padding: 24px 16px 80px; }
+	.prompt { color: var(--dim); }
+	h1 { color: var(--green); margin: 0.2em 0; }
+	h2 { margin-top: 2em; font-size: 1.05rem; }
+	h2 small { color: var(--dim); font-weight: 400; font-size: 0.75rem; }
+	h3 { font-size: 0.9rem; color: var(--dim); font-weight: 400; }
+	.lede, .desc { color: var(--dim); font-size: 0.85rem; max-width: 75ch; }
+	table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+	th { text-align: left; color: var(--dim); font-weight: 400; border-bottom: 1px solid var(--line); padding: 4px 6px; }
+	td { border-bottom: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
+	.kinds td.desc { font-size: 0.78rem; }
+	.num { text-align: right; white-space: nowrap; }
+	:global(tr.off) { opacity: 0.45; }
+	:global(.dim) { color: var(--dim); }
+	.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+	.cols ol { padding-left: 1.4em; font-size: 0.82rem; }
+	:global(.cols .w) { color: var(--green); font-variant-numeric: tabular-nums; }
+	button { font: inherit; font-size: 0.8rem; background: var(--panel); color: var(--text); border: 1px solid var(--line); padding: 3px 10px; cursor: pointer; }
+	button:hover { border-color: var(--green); }
+	button.danger { color: var(--red); }
+	:global(button.x) { padding: 0 6px; }
+	.row { margin: 12px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+	.log { display: block; overflow-x: auto; }
+	@media (max-width: 640px) {
+		.cols { grid-template-columns: 1fr; }
+		.kinds thead { display: none; }
+		.kinds tr { display: grid; grid-template-columns: auto 1fr auto auto; gap: 2px 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+		.kinds td { border: 0; padding: 0; }
+		.kinds td.desc { grid-column: 1 / -1; order: 9; }
+	}
+</style>

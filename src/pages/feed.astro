@@ -67,15 +67,15 @@ const sources = [
 			<h1>the feed<span class="cursor">_</span></h1>
 			<p class="tag">an endless scroll that isn't farming you.</p>
 			<ol class="rules">
-				<li><b>you are the algorithm.</b> Press <em>tune</em>: each slider is how often a kind of card shows up, and <em>your taste</em> is a profile you write yourself. That is the whole ranking.</li>
+				<li><b>you are the algorithm.</b> Press <em>tune</em>: each slider is how often a kind of card shows up, and <em>your taste</em> is what you write there plus what you save, open and turn down, every bit of it listed on <a href="/signals">my signals</a>. That is the whole ranking.</li>
 				<li><b>every card tells you why it's here.</b> No hidden engagement score. Open <em>why am I seeing this?</em> on any card for the exact rule that picked it and put it where it is, and <em>delivery log</em> lets you download every one.</li>
 				<li><b>any ranking runs on your computer.</b> Taste matching uses your own words, or a model on your own machine through Ollama. No server sees your profile.</li>
-				<li><b>nothing is tracked.</b> This page has no analytics. Your weights and saves stay in this browser.</li>
+				<li><b>what you do stays here.</b> This page has no analytics. To learn your taste it notes what you save, open, ask more of, turn down, skip past and look at, in this browser only: never sent anywhere, and every one is on <a href="/signals">my signals</a> to switch off or delete.</li>
 				<li><b>everything is credited and linked.</b> All of it comes from museums, Wikipedia, NASA and people who share their work openly.</li>
 				<li><b>it shows you the clock.</b> The time you've spent is at the top, and every chapter ends with a place to stop.</li>
 			</ol>
 			<p class="seedline" id="seedLine" hidden></p>
-			<p class="keys">keys: <kbd>j</kbd>/<kbd>k</kbd> next/previous card · <kbd>s</kbd> save · <kbd>m</kbd> more like this</p>
+			<p class="keys">keys: <kbd>j</kbd>/<kbd>k</kbd> next/previous card · <kbd>s</kbd> save · <kbd>m</kbd> more like this · <kbd>x</kbd> not for me</p>
 		</header>
 
 		<div id="stream"></div>
@@ -142,17 +142,20 @@ const sources = [
 		<label class="slider">
 			<span class="name">taste strength <output data-for="tasteStrength">0</output></span>
 			<input type="range" min="0" max="5" step="1" value="0" id="tasteStrength" />
-			<span class="desc" id="tasteDesc">0 is off: pure random draw. Each step compares more of the cards waiting in a source and shows the one closest to your taste.</span>
+			<span class="desc" id="tasteDesc">0 is off: pure random draw. Each step compares more of the cards waiting in a source (3, 5, 7…) and shows the one closest to your taste: what you wrote above, plus your signals.</span>
 		</label>
-		<label class="rawtoggle">
-			<input type="checkbox" id="tasteSaves" checked />
-			<span><b>learn from my saves</b>: cards you've starred count as "more of this" too.</span>
+		<label class="slider">
+			<span class="name">exploration <output data-for="tasteExplore">20%</output></span>
+			<input type="range" min="0" max="100" step="5" value="20" id="tasteExplore" />
+			<span class="desc">How many cards ignore your taste completely and are picked at random from what's waiting, so the feed can still surprise you and doesn't close in around what you already like. Each one says so on its card.</span>
 		</label>
+		<p class="desc"><a href="/signals">my signals →</a> every save, open, more-like-this, ✕, fast skip and time on screen this browser has noted, what each counts for, an on/off switch for each kind, and delete buttons.</p>
 		<label class="rawtoggle">
 			<input type="checkbox" id="tasteOllama" />
 			<span><b>use the model on my computer</b>: match by meaning instead of exact words, with
-			<input id="tasteModel" value="nomic-embed-text" size="16" spellcheck="false" /> through Ollama at localhost.
-			One time: <code>ollama pull nomic-embed-text</code>, then let this site reach Ollama by setting
+			<input id="tasteModel" value="nomic-embed-text" size="16" spellcheck="false" />. Best through your pack server
+			(<code>npm run pack:serve</code>), which asks your Ollama and keeps every card's meaning on disk so nothing is worked out twice.
+			Or straight to Ollama at localhost: one time, <code>ollama pull nomic-embed-text</code>, then let this site reach Ollama by setting
 			<code>OLLAMA_ORIGINS=https://aishipped.lol</code> where Ollama starts: in its service settings if it runs in the
 			background (on NixOS, <code>services.ollama.environmentVariables</code>), or as <code>OLLAMA_ORIGINS=https://aishipped.lol ollama serve</code> if you start it by hand.
 			<em id="tasteStatus"></em></span>
@@ -162,14 +165,15 @@ const sources = [
 		<p class="lede audit">
 			What decides the order: the buttons at the top. <em>as drawn</em> shows cards in the order they were picked; <em>A–Z</em> sorts each chapter by title;
 			<em>shuffle</em> picks a seed number, shown above the feed, and the same link always gives the same cards in the same order. Which cards are picked is a random draw using the weights above, then, only if you turn taste strength up, a comparison
-			against the profile you wrote, done in this browser or by your own computer's model. No server-side model, no profile anyone
-			else holds, no history of what you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
+			against your taste (what you wrote, plus the signals on <a href="/signals">my signals</a>), done in this browser or by your own
+			computer's model, except for the exploration share, which ignores taste. No server-side model, no profile anyone else holds,
+			nothing about what you do leaves this browser; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
 			Some sources hand over their own popular lists (wildlife and Hacker News by votes, Mastodon trends, Wikipedia's most read),
 			ranked the same for everyone. Set those to 0 for a feed with no popularity in it at all.
 		</p>
 		<p class="row"><button id="forgetSeen">forget what I've seen</button> <button id="resetTune">reset</button> <button data-close>done</button></p>
 		<p class="row"><button id="forgetAll" class="danger">forget everything on this device</button></p>
-		<p class="desc">Deletes everything this site keeps in this browser: sliders, taste, saves, never-show list, what you've seen, the delivery log, the homepage checklist and the cached pictures.</p>
+		<p class="desc">Deletes everything this site keeps in this browser: sliders, taste, signals, saves, never-show list, what you've seen, the delivery log, the homepage checklist and the cached pictures.</p>
 	</aside>
 
 	<aside id="saved" class="panel" hidden>
@@ -183,6 +187,8 @@ const sources = [
 <script>
 	import BLOCK_TXT from '../data/blocklist.txt?raw';
 	import { blockRegex } from '../data/block.mjs';
+	import * as SIG from '../lib/signals';
+	import * as T from '../lib/taste';
 	type Card = {
 		id: string;
 		src: string;
@@ -961,7 +967,7 @@ const sources = [
 	}
 
 	// ---- your pack (served from this computer by scripts/pack/serve.mjs) ------------
-	const PACK = 'http://127.0.0.1:8790';
+	const PACK = 'http://127.0.0.1:8793';
 	const PK_KEY = 'aishipped.feed.pack', CAP_KEY = 'aishipped.feed.captions';
 	const packBox = document.getElementById('packOnly') as HTMLInputElement;
 	const capBox = document.getElementById('captions') as HTMLInputElement;
@@ -981,7 +987,7 @@ const sources = [
 			} catch (e) {
 				const why = (e as Error).message;
 				packStatus.textContent = why === 'all seen' ? ' You have seen every card you kept: build more, or press "forget what I\'ve seen".'
-					: why === 'empty' ? ' Your pack has no kept cards yet: review some at 127.0.0.1:8790.'
+					: why === 'empty' ? ' Your pack has no kept cards yet: review some at 127.0.0.1:8793.'
 					: ' Not reachable: run npm run pack:serve in the aishipped folder.';
 				throw e;
 			}
@@ -1118,111 +1124,153 @@ const sources = [
 
 	const T_KEY = 'aishipped.feed.taste';
 	const LOG_KEY = 'aishipped.feed.log';
-	type Taste = { want: string; less: string; strength: number; saves: boolean; ollama: boolean; model: string };
-	const tasteDefault: Taste = { want: '', less: '', strength: 0, saves: true, ollama: false, model: 'nomic-embed-text' };
+	type Taste = { want: string; less: string; strength: number; explore: number; saves: boolean; ollama: boolean; model: string };
+	const tasteDefault: Taste = { want: '', less: '', strength: 0, explore: 20, saves: true, ollama: false, model: 'nomic-embed-text' };
 	let taste: Taste = { ...tasteDefault, ...load<Partial<Taste>>(T_KEY, {}) };
 	const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 	const tWant = $<HTMLTextAreaElement>('tasteWant'), tLess = $<HTMLTextAreaElement>('tasteLess');
-	const tStrength = $<HTMLInputElement>('tasteStrength'), tSaves = $<HTMLInputElement>('tasteSaves');
+	const tStrength = $<HTMLInputElement>('tasteStrength'), tExplore = $<HTMLInputElement>('tasteExplore');
 	const tOllama = $<HTMLInputElement>('tasteOllama'), tModel = $<HTMLInputElement>('tasteModel'), tStatus = $('tasteStatus');
 	const showTaste = () => {
 		tWant.value = taste.want; tLess.value = taste.less; tStrength.value = String(taste.strength);
-		tSaves.checked = taste.saves; tOllama.checked = taste.ollama; tModel.value = taste.model;
+		tExplore.value = String(taste.explore); tOllama.checked = taste.ollama; tModel.value = taste.model;
 		document.querySelector('output[data-for="tasteStrength"]')!.textContent = String(taste.strength);
+		document.querySelector('output[data-for="tasteExplore"]')!.textContent = `${taste.explore}%`;
 	};
 	const saveTaste = () => {
-		taste = { want: tWant.value, less: tLess.value, strength: +tStrength.value, saves: tSaves.checked, ollama: tOllama.checked, model: tModel.value.trim() || 'nomic-embed-text' };
-		store(T_KEY, taste); showTaste(); profileVecs = null;
+		taste = { want: tWant.value, less: tLess.value, strength: +tStrength.value, explore: +tExplore.value, saves: true, ollama: tOllama.checked, model: tModel.value.trim() || 'nomic-embed-text' };
+		store(T_KEY, taste); showTaste(); profileDirty = true;
 		if (taste.ollama) checkOllama();
 	};
 	showTaste();
 	for (const x of [tWant, tLess, tModel]) x.addEventListener('change', saveTaste);
-	for (const x of [tStrength, tSaves, tOllama]) x.addEventListener('input', saveTaste);
+	for (const x of [tStrength, tExplore, tOllama]) x.addEventListener('input', saveTaste);
 
 	const cardText = (c: Card) => [c.title, c.sub, c.body?.slice(0, 500), c.imgAlt].filter(Boolean).join('. ');
 	const lines = (t: string) => t.split('\n').map((x) => x.trim()).filter((x) => x && !x.startsWith('#'));
-	// the profile: what you wrote, plus your saves if you allow it
-	const wants = () => [...lines(taste.want).map((t) => ({ t, label: t })), ...(taste.saves ? saved.slice(0, 60).map((x) => ({ t: x.text || x.title, label: `your save "${x.title.slice(0, 40)}"` })) : [])];
-	const lesses = () => lines(taste.less).map((t) => ({ t, label: t }));
-
-	// --- word matching: always available, nothing leaves the page
-	const STOP = new Set('the a an and or of in on at to for with from by is are was were be this that it its as into over under old new'.split(' '));
-	// "birds" and "bird" count as the same word, like the never-show list
-	const stem = (w: string) => w.length < 4 ? w : w.replace(/ies$/, 'y').replace(/(ss|x|ch|sh)es$/, '$1').replace(/([^s])s$/, '$1');
-	const toks = (t: string) => (t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => w.length > 2 && !STOP.has(w)).map(stem);
-	function wordScore(c: Card) {
-		const have = new Set(toks(cardText(c)));
-		const hit = (t: string) => { const w = toks(t); return w.length ? w.filter((x) => have.has(x)).length / w.length : 0; };
-		let best = { s: 0, label: '' }, worst = { s: 0, label: '' };
-		for (const x of wants()) { const s = hit(x.t); if (s > best.s) best = { s, label: x.label }; }
-		for (const x of lesses()) { const s = hit(x.t); if (s > worst.s) worst = { s, label: x.label }; }
-		return { score: best.s - worst.s, best, worst };
+	// ---- signals: what you do with each card, kept in this browser only (src/lib/signals.ts) ----------
+	// /signals lists every one, with an on/off switch per kind and delete buttons
+	let sigOn = SIG.loadOn();
+	let signals: T.Signal[] = [];
+	let profileDirty = true;
+	const sigReady = SIG.all().then((x) => { signals = x; });
+	SIG.onChange(async () => { sigOn = SIG.loadOn(); signals = await SIG.all(); profileDirty = true; });
+	async function signal(kind: T.Kind, card: Card, extra: Partial<T.Signal> = {}) {
+		if (!sigOn[kind] || card.draw) return null; // drawn cards (charts, maps made here) have nothing to learn from
+		const s: T.Signal = { at: Date.now(), kind, card: card.id, src: card.src, title: card.title.slice(0, 200), text: cardText(card).slice(0, 600), ...extra };
+		const id = await SIG.add(s);
+		if (id != null) s.id = id;
+		signals.push(s); profileDirty = true; SIG.changed();
+		return id;
 	}
+	async function unsignal(pred: (s: T.Signal) => boolean) {
+		await SIG.removeWhere((s) => !pred(s));
+		signals = signals.filter((s) => !pred(s)); profileDirty = true; SIG.changed();
+	}
+	// saves from before signals existed count as saves made today (delete them on /signals if that's wrong)
+	sigReady.then(async () => {
+		if (load<boolean>('aishipped.signals.migrated', false)) return;
+		const have = new Set(signals.filter((x) => x.kind === 'save').map((x) => x.card));
+		for (const x of saved) if (!have.has(x.id)) {
+			const s: T.Signal = { at: Date.now(), kind: 'save', card: x.id, src: x.src, title: x.title, text: x.text || x.title, note: 'from your saved list, before signals were kept' };
+			const id = await SIG.add(s); if (id != null) { s.id = id; signals.push(s); }
+		}
+		store('aishipped.signals.migrated', true); profileDirty = true;
+	});
 
-	// --- meaning matching: Ollama on this computer
+	// ---- your taste: one recency-weighted average of what you liked, one of what you didn't (src/lib/taste.ts)
+
+	// meaning: your pack server (which keeps every vector on disk), or Ollama directly; else words
 	const OLLAMA = 'http://localhost:11434';
-	let ollamaOk = false;
+	let via: 'pack' | 'ollama' | null = null;
 	const vecCache = new Map<string, number[]>();
-	let profileVecs: { want: { v: number[]; label: string }[]; less: { v: number[]; label: string }[] } | null = null;
 	async function embed(texts: string[]): Promise<number[][]> {
 		const need = [...new Set(texts.filter((t) => !vecCache.has(t)))];
-		if (need.length) {
-			const r = await fetch(`${OLLAMA}/api/embed`, { method: 'POST', body: JSON.stringify({ model: taste.model, input: need }), signal: AbortSignal.timeout(20000) });
-			if (!r.ok) throw new Error(`ollama ${r.status}`);
+		for (let i = 0; i < need.length; i += 256) {
+			const part = need.slice(i, i + 256);
+			const url = via === 'pack' ? `${PACK}/api/embed` : `${OLLAMA}/api/embed`;
+			const r = await fetch(url, { method: 'POST', headers: via === 'pack' ? { 'content-type': 'application/json' } : {}, body: JSON.stringify({ model: taste.model, input: part }), signal: AbortSignal.timeout(via === 'pack' ? 120000 : 20000) });
+			if (!r.ok) throw new Error(`${via} ${r.status}`);
 			const d = await r.json();
-			need.forEach((t, i) => vecCache.set(t, d.embeddings[i]));
-			if (vecCache.size > 3000) for (const k of [...vecCache.keys()].slice(0, 1000)) vecCache.delete(k);
+			part.forEach((t, j) => vecCache.set(t, d.embeddings[j]));
 		}
+		if (vecCache.size > 6000) for (const k of [...vecCache.keys()].slice(0, 2000)) vecCache.delete(k);
 		return texts.map((t) => vecCache.get(t)!);
 	}
-	const cos = (a: number[], b: number[]) => { let d = 0, x = 0, y = 0; for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; x += a[i] * a[i]; y += b[i] * b[i]; } return d / (Math.sqrt(x * y) || 1); };
 	async function checkOllama() {
-		tStatus.textContent = ' checking for ollama…';
-		try {
-			await embed(['test']);
-			ollamaOk = true; tStatus.textContent = ` connected: ${taste.model} is running on this computer.`;
-		} catch {
-			ollamaOk = false; tStatus.textContent = ` not reachable, so matching by words instead. Is Ollama running, does its OLLAMA_ORIGINS include ${location.origin}, and is ${taste.model} pulled?`;
+		tStatus.textContent = ' checking your computer…';
+		for (const v of ['pack', 'ollama'] as const) {
+			via = v;
+			try {
+				await embed([`test ${Date.now()}`]);
+				tStatus.textContent = v === 'pack' ? ` connected: ${taste.model} through your pack server, every card's meaning kept on disk.` : ` connected: ${taste.model} through Ollama on this computer.`;
+				profileDirty = true;
+				return;
+			} catch {}
 		}
+		via = null;
+		tStatus.textContent = ` not reachable, so matching by words instead. Is the pack server (npm run pack:serve) or Ollama running, does Ollama's OLLAMA_ORIGINS include ${location.origin}, and is ${taste.model} pulled?`;
 	}
 	if (taste.ollama) checkOllama();
-	const LESS_BAR = 0.6; // with nothing under "more of this": how alike a card must be to a "less" line to be lowered
-	async function meaningScores(cards: Card[]) {
-		if (!profileVecs) {
-			const w = wants(), l = lesses();
-			const [wv, lv] = await Promise.all([embed(w.map((x) => x.t)), embed(l.map((x) => x.t))]);
-			profileVecs = { want: wv.map((v, i) => ({ v, label: w[i].label })), less: lv.map((v, i) => ({ v, label: l[i].label })) };
-		}
-		const cv = await embed(cards.map(cardText));
-		return cv.map((v) => {
-			let best = { s: 0, label: '' }, worst = { s: 0, label: '' };
-			for (const x of profileVecs!.want) { const s = cos(v, x.v); if (s > best.s) best = { s, label: x.label }; }
-			for (const x of profileVecs!.less) { const s = cos(v, x.v); if (s > worst.s) worst = { s, label: x.label }; }
-			// the model finds every pair of texts a little alike, so a "less" line only counts (and is only
-			// named) when the card is closer to it than to anything in "more of this"
-			const over = profileVecs!.want.length ? worst.s - best.s : worst.s - LESS_BAR;
-			const lowered = over > 0 ? { s: over, label: worst.label } : { s: 0, label: '' };
-			return { score: best.s - lowered.s, best, worst: lowered };
-		});
+	const method = () => (via === 'pack' ? `${taste.model} via your pack server` : via === 'ollama' ? `${taste.model} via Ollama` : 'word match');
+	const vecs = async (texts: string[]): Promise<T.Vec[]> => {
+		if (taste.ollama && via) { try { return await embed(texts); } catch { via = null; tStatus.textContent = ' lost the model on your computer: matching by words for now.'; } }
+		return texts.map((t) => T.wordVec(t));
+	};
+
+	type Profile = { items: (T.Item & { v: T.Vec })[]; tv: T.TasteVec; method: string; fromSignals: number; written: number };
+	let profile: Profile | null = null;
+	let building: Promise<Profile | null> | null = null;
+	async function getProfile(): Promise<Profile | null> {
+		if (!profileDirty && profile && profile.method === method()) return profile;
+		if (building) return building;
+		building = (async () => {
+			await sigReady;
+			profileDirty = false;
+			const fromSignals = T.cardWeights(signals, Date.now(), sigOn);
+			const written = T.writtenItems(lines(taste.want), lines(taste.less));
+			const items = T.strongest([...written, ...T.strongest(fromSignals)], T.MAX_ITEMS + written.length);
+			if (!items.length) return (profile = null);
+			const m = method();
+			const vs = await vecs(items.map((x) => x.text));
+			const withV = items.map((x, i) => ({ ...x, v: vs[i] }));
+			return (profile = { items: withV, tv: T.tasteVector(withV), method: m, fromSignals: fromSignals.length, written: written.length });
+		})().finally(() => { building = null; });
+		return building;
 	}
 
-	type Pick = { card?: Card; why: string; score?: number; method?: string; compared?: number };
+	type Pick = { card?: Card; why: string; score?: number; method?: string; compared?: number; explore?: boolean };
 	const taken = new Map<string, Pick>();
+	const f2 = (x: number) => x.toFixed(2);
 	async function tastePick(queue: Card[]): Promise<Pick> {
-		if (!taste.strength || (!wants().length && !lesses().length)) return { card: queue[0], why: '' };
+		if (!taste.strength) return { card: queue[0], why: '' };
+		let prof = await getProfile();
+		if (!prof) return { card: queue[0], why: 'your taste: nothing to go on yet (no signals, nothing written), so the first card waiting' };
 		const pool = queue.slice(0, 1 + taste.strength * 2);
-		let scores: ReturnType<typeof wordScore>[], method = 'word match';
-		try {
-			if (!taste.ollama || !ollamaOk) throw 0;
-			scores = await meaningScores(pool); method = `${taste.model} on your computer`;
-		} catch { scores = pool.map(wordScore); }
+		const dial = `exploration dial ${taste.explore}%`;
+		if (Math.random() * 100 < taste.explore) {
+			const i = Math.floor(Math.random() * pool.length);
+			return { card: pool[i], why: `exploration: picked at random from the ${pool.length} waiting, ignoring your taste (${dial}: about ${taste.explore ? `1 card in ${Math.round(100 / taste.explore)}` : 'none'})`, method: 'exploration', compared: pool.length, explore: true };
+		}
+		let cv = await vecs(pool.map(cardText));
+		if (prof.method !== method()) {
+			// the model on your computer went away mid-pick: redo both sides by words
+			prof = await getProfile();
+			if (!prof) return { card: queue[0], why: '' };
+			cv = await vecs(pool.map(cardText));
+		}
+		const scored = cv.map((v) => T.score(v, prof.tv));
 		let i = 0;
-		scores.forEach((x, j) => { if (x.score > scores[i].score) i = j; });
-		const x = scores[i];
-		const bits = [`your taste: best of ${pool.length} waiting (${method}), score ${x.score.toFixed(2)}`];
-		if (x.best.label && x.best.s > 0) bits.push(`closest to "${x.best.label}"`);
-		if (x.worst.label && x.worst.s > 0.0001) bits.push(`lowered by "${x.worst.label}"`);
-		return { card: pool[i], why: bits.join(', '), score: +x.score.toFixed(3), method, compared: pool.length };
+		scored.forEach((x, j) => { if (x.score > scored[i].score) i = j; });
+		const x = scored[i], others = scored.filter((_, j) => j !== i).map((y) => y.score);
+		const bits = [`your taste (${prof.method}): best of ${pool.length} waiting, score ${f2(x.score)}${others.length ? ` (the others ${f2(Math.min(...others))}–${f2(Math.max(...others))})` : ''}`];
+		if (prof.tv.pos) bits.push(`likeness to what you liked ${f2(x.like)}`);
+		if (x.lowered > 0) bits.push(`lowered ${f2(x.lowered)} for being closer to what you turned down (${f2(x.unlike)})`);
+		const d = T.drivers(cv[i], prof.items);
+		if (d.length) bits.push(`pulled up most by ${d.map((y) => `${T.describe(y)} (${f2(y.sim)})`).join(' and ')}`);
+		bits.push(`taste made from ${prof.fromSignals} card${prof.fromSignals === 1 ? '' : 's'} you reacted to${prof.written ? ` and ${prof.written} line${prof.written === 1 ? '' : 's'} you wrote` : ''}, recent ones counting more (half-life ${T.HALF_LIFE_DAYS} days)`);
+		bits.push(`exploration: no (${dial})`);
+		return { card: pool[i], why: bits.join(' · '), score: +x.score.toFixed(3), method: prof.method, compared: pool.length };
 	}
 
 	// --- delivery log: everything shown, so you can check it
@@ -1262,7 +1310,7 @@ const sources = [
 				const d = JSON.parse(await f.files![0].text());
 				taste = { ...tasteDefault, ...Object.fromEntries(Object.entries(d).filter(([k]) => k in tasteDefault)) } as Taste;
 				if (Array.isArray(d.saved)) { saved = d.saved.filter((x: any) => x && x.id && x.title && x.link); store(S_KEY, saved); renderSaved(); }
-				store(T_KEY, taste); showTaste(); profileVecs = null; if (taste.ollama) checkOllama();
+				store(T_KEY, taste); showTaste(); profileDirty = true; if (taste.ollama) checkOllama();
 			} catch { tStatus.textContent = ' that file is not a profile from this page.'; }
 		};
 		f.click();
@@ -1297,6 +1345,8 @@ const sources = [
 		logDelivery(card, why);
 		const art = el('article', `card src-${card.src}`);
 		art.dataset.id = card.id;
+		cardOf.set(art, card);
+		watch.observe(art);
 		art.dataset.blockText = [card.title, card.sub, card.body, card.imgAlt, card.credit].filter(Boolean).join(' \n ');
 		art.tabIndex = -1;
 		const w = el('details', 'why');
@@ -1352,10 +1402,17 @@ const sources = [
 		const star = el('button', 'save', isSaved(card.id) ? '★ saved' : '☆ save');
 		star.addEventListener('click', () => toggleSave(card, star));
 		foot.append(star);
+		if (!card.draw) {
+			const nope = el('button', 'nope', '✕ not for me');
+			nope.title = 'hide this card and count it against your taste (undo is right there)';
+			nope.addEventListener('click', () => notForMe(card, art));
+			foot.append(nope);
+		}
 		if (card.more && !privateMode) {
 			const more = el('button', 'more', '↳ more like this');
 			more.addEventListener('click', async () => {
 				more.disabled = true; more.textContent = '↳ finding…';
+				signal('more', card);
 				try {
 					const cards = (await card.more!()).filter((c) => !seen.has(c.id) && !blocked(c));
 					const asked = `you pressed "more like this" on "${card.title.slice(0, 60)}"`;
@@ -1377,6 +1434,13 @@ const sources = [
 			foot.append(more);
 		}
 		art.append(foot);
+		// a link opened from this card (the title link, the play button, the extra link), once per card per visit
+		const opened = (e: MouseEvent) => {
+			if (e.type === 'auxclick' && e.button !== 1) return;
+			if (!(e.target as HTMLElement).closest('a[target=_blank]') || openedIds.has(card.id)) return;
+			openedIds.add(card.id); signal('open', card);
+		};
+		art.addEventListener('click', opened); art.addEventListener('auxclick', opened);
 		if (card.credit) art.append(el('p', 'credit', card.credit));
 		if (card.src === 'pack') {
 			// your pack, captions off: the picture and its title, and the rest when you tap
@@ -1384,6 +1448,49 @@ const sources = [
 			art.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('a, button, details, figure')) art.classList.remove('quiet'); });
 		}
 		return art;
+	}
+
+	// ---- time on screen and fast skips ------------------------------------------
+	// A card is "on screen" while at least half of it is in view (or it fills half the window, if it's tall),
+	// and only while this tab is the one you're looking at. When it leaves: under 0.8 s on its way up past the
+	// top of the window is a fast skip, 2 s or more is time on screen. Each card's time counts for at most 0.5.
+	const cardOf = new WeakMap<Element, Card>();
+	const openedIds = new Set<string>(), skippedIds = new Set<string>();
+	const onScreen = new Set<Element>(), since = new Map<Element, number>();
+	function stopClock(art: Element, passedUp: boolean) {
+		const t = since.get(art);
+		since.delete(art);
+		const card = cardOf.get(art);
+		if (t == null || !card || art.classList.contains('nope')) return;
+		const secs = (performance.now() - t) / 1000;
+		if (secs < 0.8 && passedUp && !skippedIds.has(card.id) && !isSaved(card.id) && !openedIds.has(card.id)) { skippedIds.add(card.id); signal('skip', card, { secs: +secs.toFixed(2) }); }
+		else if (secs >= 2) signal('dwell', card, { secs: Math.round(secs) });
+	}
+	const watch = new IntersectionObserver((es) => {
+		for (const e of es) {
+			const on = e.isIntersecting && (e.intersectionRatio >= 0.5 || e.intersectionRect.height >= innerHeight * 0.5);
+			if (on && !onScreen.has(e.target)) { onScreen.add(e.target); if (!document.hidden) since.set(e.target, performance.now()); }
+			else if (!on && onScreen.has(e.target)) { onScreen.delete(e.target); stopClock(e.target, e.boundingClientRect.bottom < innerHeight * 0.5); }
+		}
+	}, { threshold: [0, 0.25, 0.5, 0.75, 1] });
+	document.addEventListener('visibilitychange', () => {
+		if (document.hidden) for (const a of [...since.keys()]) stopClock(a, false);
+		else for (const a of onScreen) since.set(a, performance.now());
+	});
+	addEventListener('pagehide', () => { for (const a of [...since.keys()]) stopClock(a, false); });
+
+	async function notForMe(card: Card, art: HTMLElement) {
+		stopClock(art, false);
+		art.classList.add('nope');
+		const id = await signal('notforme', card);
+		const line = el('p', 'nopeline', `hidden: "${card.title.slice(0, 60)}" counts against your taste${sigOn.notforme ? '' : ' (not counted: that signal is switched off on my signals)'}. `);
+		const undo = el('button', '', 'undo');
+		undo.addEventListener('click', async () => {
+			if (id != null) await unsignal((s) => s.id === id);
+			line.remove(); art.classList.remove('nope');
+		});
+		line.append(undo);
+		art.append(line);
 	}
 
 	function chapterBreak(partial = 0) {
@@ -1489,8 +1596,8 @@ const sources = [
 
 	const isSaved = (id: string) => saved.some((s) => s.id === id);
 	function toggleSave(card: Card, btn: HTMLButtonElement) {
-		if (isSaved(card.id)) saved = saved.filter((s) => s.id !== card.id);
-		else saved.unshift({ id: card.id, title: card.title, link: card.link, src: SOURCES[card.src]?.name ?? card.src, text: cardText(card).slice(0, 600) });
+		if (isSaved(card.id)) { saved = saved.filter((s) => s.id !== card.id); unsignal((s) => s.kind === 'save' && s.card === card.id); }
+		else signal('save', card), saved.unshift({ id: card.id, title: card.title, link: card.link, src: SOURCES[card.src]?.name ?? card.src, text: cardText(card).slice(0, 600) });
 		store(S_KEY, saved);
 		btn.textContent = isSaved(card.id) ? '★ saved' : '☆ save';
 		renderSaved();
@@ -1506,6 +1613,7 @@ const sources = [
 			x.addEventListener('click', () => {
 				saved = saved.filter((v) => v.id !== s.id);
 				store(S_KEY, saved);
+				unsignal((g) => g.kind === 'save' && g.card === s.id);
 				const b = stream.querySelector(`[data-id="${CSS.escape(s.id)}"] .save`);
 				if (b) b.textContent = '☆ save';
 				renderSaved();
@@ -1540,13 +1648,14 @@ const sources = [
 		return { cards, i: cards.findIndex((c) => c.getBoundingClientRect().bottom > top + 40) };
 	}
 	addEventListener('keydown', (e) => {
-		if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
+		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.metaKey || e.ctrlKey || e.altKey) return;
 		const { cards, i } = current();
 		const go = (n: number) => { const c = cards[Math.max(0, Math.min(cards.length - 1, n))]; c?.scrollIntoView({ block: 'start' }); };
 		if (e.key === 'j') go(cards[i] && cards[i].getBoundingClientRect().top > 80 ? i : i + 1);
 		else if (e.key === 'k') go(i - 1);
 		else if (e.key === 's') cards[i]?.querySelector<HTMLButtonElement>('.save')?.click();
 		else if (e.key === 'm') cards[i]?.querySelector<HTMLButtonElement>('.more:not(:disabled)')?.click();
+		else if (e.key === 'x') cards[i]?.querySelector<HTMLButtonElement>('.nope')?.click();
 		else if (e.key === 'Escape') toggle('', false);
 	});
 
@@ -1595,6 +1704,7 @@ const sources = [
 		if (!confirm('Delete everything this site keeps in this browser?')) return;
 		for (const k of Object.keys(localStorage)) if (k.startsWith('aishipped.')) localStorage.removeItem(k);
 		try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+		await SIG.forgetDatabase();
 		try { for (const r of (await navigator.serviceWorker?.getRegistrations()) ?? []) await r.unregister(); } catch {}
 		removeEventListener('pagehide', saveLeftovers);
 		location.href = '/feed';
@@ -1688,6 +1798,10 @@ const sources = [
 	:global(.card .body.open) { display: block; }
 	:global(.card .foot) { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0; font-size: 0.82rem; }
 	:global(.card .foot button) { padding: 2px 8px; font-size: 0.8rem; }
+	:global(.card .foot .nope) { color: var(--dim); }
+	:global(.card.nope) > :global(:not(.nopeline)) { display: none; }
+	:global(.card.nope) { padding-block: 8px; }
+	:global(.card .nopeline) { color: var(--dim); font-size: 0.8rem; margin: 0; }
 	:global(.card .credit) { color: var(--dim); font-size: 0.7rem; margin: 8px 0 0; }
 	:global(.card.quiet .sub), :global(.card.quiet .body), :global(.card.quiet .credit) { display: none; }
 	:global(.card.quiet) { cursor: pointer; }

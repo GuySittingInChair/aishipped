@@ -1,7 +1,7 @@
 // Build (or add to) your personal pack: only the collections you allow (scripts/pack/collections.mjs), screened
 // against the never-show list, every card judged once by a model on your own computer (Ollama), its picture
 // saved locally so the pack works offline. New cards wait in the review queue until you keep or toss them
-// (npm run pack:serve, then open http://127.0.0.1:8790).
+// (npm run pack:serve, then open http://127.0.0.1:8793).
 //
 //   npm run pack                       adds up to perCollection new cards from each allowed collection
 //   npm run pack -- --only=birds,jazz  just those
@@ -136,4 +136,4 @@ for (const [id, C] of Object.entries(COLLECTIONS)) {
 await save();
 const waiting = cards.filter((c) => c.status === 'review').length;
 console.log(`\n${tally.kept} new cards waiting for you, ${tally.judgedOut} turned down by the judge, ${tally.blocked} on the never-show list, ${tally.failed} failed.`);
-console.log(`${waiting} in your review queue, ${cards.filter((c) => c.status === 'kept').length} kept. Review: npm run pack:serve, then open http://127.0.0.1:8790`);
+console.log(`${waiting} in your review queue, ${cards.filter((c) => c.status === 'kept').length} kept. Review: npm run pack:serve, then open http://127.0.0.1:8793`);
