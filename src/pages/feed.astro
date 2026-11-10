@@ -45,31 +45,18 @@ const sources = [
 ---
 
 <Base title="the feed · aishipped.lol" description="An endless scroll with no ads, no tracking and an algorithm you set yourself.">
-		<link rel="preconnect" href="https://en.wikipedia.org" crossorigin />
-	<link rel="preconnect" href="https://upload.wikimedia.org" crossorigin />
-	<link rel="preconnect" href="https://api.inaturalist.org" crossorigin />
-	<link rel="preconnect" href="https://inaturalist-open-data.s3.amazonaws.com" crossorigin />
-	<link rel="preconnect" href="https://openaccess-api.clevelandart.org" crossorigin />
-	<link rel="preconnect" href="https://openaccess-cdn.clevelandart.org" crossorigin />
-	<link rel="preconnect" href="https://api.artic.edu" crossorigin />
-	<link rel="preconnect" href="https://www.artic.edu" crossorigin />
-	<link rel="preconnect" href="https://commons.wikimedia.org" crossorigin />
-	<link rel="preconnect" href="https://poetrydb.org" crossorigin />
-	<link rel="preconnect" href="https://archive.org" crossorigin />
-	<link rel="preconnect" href="https://www.loc.gov" crossorigin />
-	<link rel="preconnect" href="https://tile.loc.gov" crossorigin />
-	<link rel="preconnect" href="https://openlibrary.org" crossorigin />
-	<link rel="preconnect" href="https://covers.openlibrary.org" crossorigin />
-	<link rel="preconnect" href="https://images-api.nasa.gov" crossorigin />
-	<link rel="preconnect" href="https://images-assets.nasa.gov" crossorigin />
-	<link rel="preconnect" href="https://mastodon.social" crossorigin />
-	<link rel="preconnect" href="https://earthquake.usgs.gov" crossorigin />
+	<script type="application/json" id="preconnect" set:html={JSON.stringify(["https://en.wikipedia.org", "https://upload.wikimedia.org", "https://api.inaturalist.org", "https://inaturalist-open-data.s3.amazonaws.com", "https://openaccess-api.clevelandart.org", "https://openaccess-cdn.clevelandart.org", "https://api.artic.edu", "https://www.artic.edu", "https://commons.wikimedia.org", "https://poetrydb.org", "https://archive.org", "https://www.loc.gov", "https://tile.loc.gov", "https://openlibrary.org", "https://covers.openlibrary.org", "https://images-api.nasa.gov", "https://images-assets.nasa.gov", "https://mastodon.social", "https://earthquake.usgs.gov"])} />
 	<script type="application/json" id="snaps" set:html={snaps} />
 	<script type="application/json" id="start" set:html={startJSON} />
 	<div class="bar" id="bar">
 		<a href="/" class="home">aishipped.lol</a>
 		<span class="stat"><span id="clock">0 min</span> · <span id="count">0</span> cards</span>
 		<span class="spacer"></span>
+		<span class="order" role="group" aria-label="order">
+			<button data-order="drawn" title="cards in the order they were picked">as drawn</button>
+			<button data-order="az" title="each chapter sorted A to Z by title">A–Z</button>
+			<button id="shuffleBtn" title="a new random seed: the same link always gives the same cards in the same order">shuffle</button>
+		</span>
 		<button id="tuneBtn" aria-expanded="false" aria-controls="tune">tune</button>
 		<button id="savedBtn" aria-controls="saved">saved <span id="savedCount">0</span></button>
 	</div>
@@ -81,12 +68,13 @@ const sources = [
 			<p class="tag">an endless scroll that isn't farming you.</p>
 			<ol class="rules">
 				<li><b>you are the algorithm.</b> Press <em>tune</em>: each slider is how often a kind of card shows up, and <em>your taste</em> is a profile you write yourself. That is the whole ranking.</li>
-				<li><b>every card tells you why it's here.</b> No hidden engagement score. The line at the top of each card is the full reason, and <em>delivery log</em> lets you download every one.</li>
+				<li><b>every card tells you why it's here.</b> No hidden engagement score. Open <em>why am I seeing this?</em> on any card for the exact rule that picked it and put it where it is, and <em>delivery log</em> lets you download every one.</li>
 				<li><b>any ranking runs on your computer.</b> Taste matching uses your own words, or a model on your own machine through Ollama. No server sees your profile.</li>
 				<li><b>nothing is tracked.</b> This page has no analytics. Your weights and saves stay in this browser.</li>
 				<li><b>everything is credited and linked.</b> All of it comes from museums, Wikipedia, NASA and people who share their work openly.</li>
 				<li><b>it shows you the clock.</b> The time you've spent is at the top, and every chapter ends with a place to stop.</li>
 			</ol>
+			<p class="seedline" id="seedLine" hidden></p>
 			<p class="keys">keys: <kbd>j</kbd>/<kbd>k</kbd> next/previous card · <kbd>s</kbd> save · <kbd>m</kbd> more like this</p>
 		</header>
 
@@ -107,6 +95,12 @@ const sources = [
 			<span><b>my pack</b>: only cards you've kept from your own pack on this computer, nothing else. It's built from
 			collections you allow and judged by your own model (<code>npm run pack</code>), then reviewed by you
 			(<code>npm run pack:serve</code>, keep or toss each card). <em id="packStatus"></em></span>
+		</label>
+		<label class="rawtoggle">
+			<input type="checkbox" id="private" />
+			<span><b>private</b>: the museums and libraries never see you. Cards come only from this site's own weekly copy,
+			pictures are fetched for you by this site, and nothing contacts another server until you click a link. Fewer kinds
+			of card (no live sources) and no "more like this".</span>
 		</label>
 		<label class="rawtoggle">
 			<input type="checkbox" id="captions" />
@@ -166,13 +160,16 @@ const sources = [
 		<p class="row"><button id="tasteExport">download my profile</button> <button id="tasteImport">load a profile</button> <button id="logExport">download delivery log</button></p>
 		<p class="desc">The delivery log is every card shown on this device: when, from where, the link, the image address, the reason and the taste score, plus every server this page has contacted. It is kept in this browser and downloaded as a file you can open and check.</p>
 		<p class="lede audit">
-			What decides the order: every chapter is sorted A to Z by title. Which cards make it into a chapter is a random draw using the weights above, then, only if you turn taste strength up, a comparison
+			What decides the order: the buttons at the top. <em>as drawn</em> shows cards in the order they were picked; <em>A–Z</em> sorts each chapter by title;
+			<em>shuffle</em> picks a seed number, shown above the feed, and the same link always gives the same cards in the same order. Which cards are picked is a random draw using the weights above, then, only if you turn taste strength up, a comparison
 			against the profile you wrote, done in this browser or by your own computer's model. No server-side model, no profile anyone
 			else holds, no history of what you clicked; the code is <a href="https://github.com/GuySittingInChair/aishipped/blob/main/src/pages/feed.astro">here</a>.
 			Some sources hand over their own popular lists (wildlife and Hacker News by votes, Mastodon trends, Wikipedia's most read),
 			ranked the same for everyone. Set those to 0 for a feed with no popularity in it at all.
 		</p>
 		<p class="row"><button id="forgetSeen">forget what I've seen</button> <button id="resetTune">reset</button> <button data-close>done</button></p>
+		<p class="row"><button id="forgetAll" class="danger">forget everything on this device</button></p>
+		<p class="desc">Deletes everything this site keeps in this browser: sliders, taste, saves, never-show list, what you've seen, the delivery log, the homepage checklist and the cached pictures.</p>
 	</aside>
 
 	<aside id="saved" class="panel" hidden>
@@ -202,6 +199,7 @@ const sources = [
 		credit?: string;
 		draw?: (c: HTMLCanvasElement) => void;
 		embed?: string;
+		batch?: string; // which fetch it came from, for the why note
 		more?: () => Promise<Card[]>;
 	};
 
@@ -214,7 +212,29 @@ const sources = [
 
 	// phones get smaller images: same look, a fraction of the bytes
 	const small = innerWidth * devicePixelRatio < 1100;
-	const rand = (n: number) => Math.floor(Math.random() * n);
+	// ---- seed and modes -------------------------------------------------------
+	// With ?seed=N every random choice comes from that number instead of Math.random, cards come only from this
+	// site's own weekly copy (live sources change minute to minute), one at a time so network timing can't
+	// change the order, and "already seen" is ignored. Same seed + same build + same sliders and never-show
+	// list = the same cards in the same order, on any device.
+	const params = new URLSearchParams(location.search);
+	const SEED = /^\d{1,9}$/.test(params.get('seed') ?? '') ? +params.get('seed')! : null;
+	const mulberry = (a: number) => () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+	const rnd = SEED === null ? Math.random : mulberry(SEED);
+	const ORDER_KEY = 'aishipped.feed.order', PRIV_KEY = 'aishipped.feed.private';
+	type Order = 'drawn' | 'az' | 'shuffle';
+	const okOrder = (x: unknown): x is Order => x === 'drawn' || x === 'az' || x === 'shuffle';
+	const order: Order = okOrder(params.get('order')) && !(params.get('order') === 'shuffle' && SEED === null) ? params.get('order') as Order : SEED !== null ? 'shuffle' : (() => { const o = load<string>(ORDER_KEY, 'drawn'); return o === 'az' ? 'az' : 'drawn'; })();
+	const privateMode = load<boolean>(PRIV_KEY, false);
+	const fixedData = SEED !== null || privateMode; // only this site's own saved copies
+	const FIXED_SRC = new Set(['nature', 'featured', 'history', 'art', 'photos', 'books', 'design', 'curious', 'europe', 'gutenberg', 'poems', 'cyber', 'random', 'travel']);
+	const unseen = (id: string) => SEED !== null || !seen.has(id);
+	// private mode: pictures come through this site (api/img.js), so the museum sees this site, not you
+	const pic = (u?: string) => (u && privateMode && /^https:\/\//.test(u) ? `/api/img?u=${encodeURIComponent(u)}` : u);
+	if (!privateMode) for (const h of JSON.parse(document.getElementById('preconnect')?.textContent || '[]')) {
+		const l = document.createElement('link'); l.rel = 'preconnect'; l.href = h; l.crossOrigin = ''; document.head.append(l);
+	}
+	const rand = (n: number) => Math.floor(rnd() * n);
 	const pick = <T,>(a: T[]) => a[rand(a.length)];
 	const shuffle = <T,>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 	const getJSON = async (url: string, ms = 20000) => {
@@ -232,7 +252,7 @@ const sources = [
 		if (!n) throw new Error('no snapshot');
 		return getJSON(`/data/${s}-${rand(n)}.json`, 4000);
 	};
-	const relay = (s: string, pages: number, direct: string) =>
+	const relay = (s: string, pages: number, direct: string) => fixedData ? snapshot(s) :
 		snapshot(s)
 			.catch(() => getJSON(`/api/src?s=${s}&p=${rand(pages)}`, 5000))
 			.catch(() => getJSON(direct));
@@ -302,7 +322,7 @@ const sources = [
 	const cma = async () => shuffle((await relay('art', 2050, `${CMA}?${qs({ cc0: 1, has_image: 1, limit: 20, skip: rand(41000) })}`)).data.map(cmaCard).filter(Boolean));
 	const aic = async () => shuffle((await getJSON(`${AIC}?query[term][is_public_domain]=true&limit=20&page=${1 + rand(490)}&fields=${AIC_FIELDS}`)).data.map(artCard).filter(Boolean));
 	// two museums; if one refuses, the other covers
-	const art = () => (Math.random() < 0.5 ? cma() : aic()).catch(() => cma()).catch(() => aic());
+	const art = () => (fixedData || rnd() < 0.5 ? cma() : aic()).catch(() => cma()).catch(() => aic());
 
 	const INAT = 'https://api.inaturalist.org/v1/observations';
 	function natureCard(o: any): Card | null {
@@ -462,7 +482,7 @@ const sources = [
 	}
 	const short = (p: any) => +p.linecount >= 4 && +p.linecount <= 40;
 	async function poems() {
-		const d = await snapshot('poems').catch(() => getJSON('https://poetrydb.org/random/20/title,author,lines,linecount'));
+		const d = await snapshot('poems').catch((e) => { if (fixedData) throw e; return getJSON('https://poetrydb.org/random/20/title,author,lines,linecount'); });
 		return d.filter(short).map(poemCard);
 	}
 
@@ -671,7 +691,7 @@ const sources = [
 
 	const AMOUR_Q = ['nude', 'lovers', 'kiss', 'bather', 'odalisque', 'embrace', 'reclining'];
 	async function amour() {
-		if (Math.random() < 0.4) {
+		if (rnd() < 0.4) {
 			const d = await getJSON(`https://poetrydb.org/title/${pick(['love', 'kiss', 'desire', 'beloved', 'night', 'heart'])}/title,author,lines,linecount`);
 			return shuffle(Array.isArray(d) ? d.filter(short) : []).slice(0, 5).map((x: any) => ({ ...poemCard(x), src: 'amour' }));
 		}
@@ -790,7 +810,7 @@ const sources = [
 
 
 
-	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number }> = {};
+	const SOURCES: Record<string, { name: string; fill: () => Promise<Card[]>; queue: Card[]; pending?: Promise<void>; fails: number; batches?: number }> = {};
 
 	// ---- the Met ------------------------------------------------------------------
 	function metCard(o: any): Card | null {
@@ -885,7 +905,7 @@ const sources = [
 	const R_KEY = 'aishipped.feed.raw';
 	const rawBox = document.getElementById('raw') as HTMLInputElement;
 	rawBox.checked = load<boolean>(R_KEY, false);
-	const isRaw = () => rawBox.checked;
+	const isRaw = () => rawBox.checked && !fixedData;
 	const RAW: Record<string, (() => Promise<Card[]>) | null> = {
 		featured: null, today: null, hn: null, fedi: null, space: null, amour: null,
 		art: async () => shuffle((await getJSON(`${CMA}?${qs({ has_image: 1, limit: 20, skip: rand(60000) })}`)).data.map(cmaCard).filter(Boolean)),
@@ -926,7 +946,8 @@ const sources = [
 		random: async () => (await wikiQuery({ generator: 'random', grnnamespace: 0, grnlimit: 20 }, 'random')).filter((c) => (c.body?.length ?? 0) > 250),
 	};
 	// with "my pack" on, nothing but the pack: no other source is even asked
-	const enabled = (id: string) => (packBox.checked ? id === 'pack' : !(isRaw() && RAW[id] === null));
+	const packOn = () => packBox.checked && !fixedData;
+	const enabled = (id: string) => (packOn() ? id === 'pack' : !(isRaw() && RAW[id] === null) && (!fixedData || FIXED_SRC.has(id)));
 	rawBox.addEventListener('change', () => {
 		store(R_KEY, rawBox.checked);
 		for (const [id, x] of Object.entries(SOURCES)) { x.queue = []; x.fails = 0; if (enabled(id) && weights()[id] > 0) refill(id); }
@@ -977,7 +998,11 @@ const sources = [
 		const s = SOURCES[id];
 		const fill = isRaw() && RAW[id] ? RAW[id]! : s.fill;
 		s.pending ??= fill()
-			.then((cards) => { s.queue.push(...cards.filter((c) => !seen.has(c.id) && !blocked(c))); s.fails = 0; })
+			.then((cards) => {
+				const b = s.batches = (s.batches ?? 0) + 1;
+				cards.forEach((c, k) => { c.batch ??= `card ${k + 1} of ${cards.length} in batch ${b} from ${s.name}`; });
+				s.queue.push(...cards.filter((c) => unseen(c.id) && !blocked(c))); s.fails = 0;
+			})
 			.catch(() => { s.fails++; })
 			.finally(() => { s.pending = undefined; });
 		return s.pending;
@@ -1043,12 +1068,12 @@ const sources = [
 	syncOutputs();
 
 	function choose(exclude: Set<string>) {
-		if (packBox.checked) return exclude.has('pack') || SOURCES.pack.fails >= 3 ? null : { id: 'pack', why: 'from your pack: a card you kept, drawn at random' };
+		if (packOn()) return exclude.has('pack') || SOURCES.pack.fails >= 3 ? null : { id: 'pack', why: 'from your pack: a card you kept, drawn at random' };
 		const w = weights();
 		const live = Object.entries(w).filter(([id, v]) => v > 0 && enabled(id) && !exclude.has(id) && SOURCES[id].fails < 3);
 		const total = live.reduce((n, [, v]) => n + v, 0);
 		if (!total) return null;
-		let r = Math.random() * total;
+		let r = rnd() * total;
 		for (const [id, v] of live) if ((r -= v) < 0) return { id, why: `${isRaw() && RAW[id] ? 'uncurated: a random item from all of' : 'drawn at random from'} ${SOURCES[id].name}: weight ${v} of ${total} (${Math.round((v / total) * 100)}%)` };
 		return null;
 	}
@@ -1059,6 +1084,13 @@ const sources = [
 			const c = choose(tried);
 			if (!c) return null;
 			const s = SOURCES[c.id];
+			if (SEED !== null) {
+				// seeded: one source at a time, and wait for it, so timing never changes what comes next
+				if (!s.queue.length) await refill(c.id);
+				s.queue = s.queue.filter((x) => !blocked(x));
+				if (!s.queue.length) { tried.add(c.id); continue; }
+				return [s.queue.shift()!, c.why];
+			}
 			if (s.queue.length < 3) refill(c.id);
 			if (!s.queue.length) {
 				// don't stall the feed on a slow source: try another one that's ready
@@ -1267,13 +1299,15 @@ const sources = [
 		art.dataset.id = card.id;
 		art.dataset.blockText = [card.title, card.sub, card.body, card.imgAlt, card.credit].filter(Boolean).join(' \n ');
 		art.tabIndex = -1;
-		art.append(el('p', 'why', why));
+		const w = el('details', 'why');
+		w.append(el('summary', '', 'why am I seeing this?'), el('p', '', why));
+		art.append(w);
 
 		if (card.img) {
 			const fig = el('figure');
-			if (card.placeholder) fig.style.backgroundImage = `url("${card.placeholder}")`;
+			if (card.placeholder) fig.style.backgroundImage = `url("${pic(card.placeholder)}")`;
 			const img = el('img');
-			img.src = card.img; img.alt = card.imgAlt ?? ''; img.loading = shown < 3 ? 'eager' : 'lazy';
+			img.src = pic(card.img)!; img.alt = card.imgAlt ?? ''; img.loading = shown < 3 ? 'eager' : 'lazy';
 			if (shown < 2) img.fetchPriority = 'high'; img.decoding = 'async';
 			img.referrerPolicy = 'no-referrer';
 			img.onload = () => fig.classList.add('loaded');
@@ -1288,14 +1322,14 @@ const sources = [
 			art.append(fig);
 		}
 		if (card.embed) {
+			// films and records open on archive.org itself: no embedded player, so archive.org can't set
+			// cookies or see you on this page unless you choose to go there
 			const fig = art.querySelector('figure');
 			if (fig) {
 				fig.classList.add('play');
-				fig.addEventListener('click', () => {
-					const f = el('iframe');
-					f.src = card.embed!; f.allow = 'autoplay; fullscreen'; f.allowFullscreen = true;
-					fig.replaceChildren(f);
-				}, { once: true });
+				const a = link(card.link, '');
+				a.className = 'playlink'; a.setAttribute('aria-label', `play on archive.org: ${card.title}`);
+				fig.append(a);
 			}
 		}
 		if (card.draw) {
@@ -1318,15 +1352,22 @@ const sources = [
 		const star = el('button', 'save', isSaved(card.id) ? '★ saved' : '☆ save');
 		star.addEventListener('click', () => toggleSave(card, star));
 		foot.append(star);
-		if (card.more) {
+		if (card.more && !privateMode) {
 			const more = el('button', 'more', '↳ more like this');
 			more.addEventListener('click', async () => {
 				more.disabled = true; more.textContent = '↳ finding…';
 				try {
 					const cards = (await card.more!()).filter((c) => !seen.has(c.id) && !blocked(c));
+					const asked = `you pressed "more like this" on "${card.title.slice(0, 60)}"`;
+					if (order !== 'drawn') {
+						// sorted modes: they join the next chapter and take their place in its order
+						for (const c of cards) carry.push([c, asked]);
+						more.textContent = cards.length ? `↳ ${cards.length} will be in the next chapter` : '↳ nothing more found';
+						return;
+					}
 					let after: Element = art;
 					for (const c of cards) {
-						const n = render(c, `you asked for more like "${card.title.slice(0, 60)}"`);
+						const n = render(c, `${asked} · placed directly under it`);
 						n.classList.add('child');
 						after.after(n); after = n;
 					}
@@ -1340,59 +1381,93 @@ const sources = [
 		if (card.src === 'pack') {
 			// your pack, captions off: the picture and its title, and the rest when you tap
 			art.classList.toggle('quiet', !capBox.checked);
-			art.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('a, button, iframe, figure')) art.classList.remove('quiet'); });
+			art.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('a, button, details, figure')) art.classList.remove('quiet'); });
 		}
 		return art;
 	}
 
-	function chapterBreak() {
+	function chapterBreak(partial = 0) {
 		const mins = Math.round((Date.now() - t0) / 60000);
 		const d = el('div', 'chapter');
 		d.append(
 			el('p', 'big', `end of chapter ${chapter}`),
+			...(partial ? [el('p', '', `partial chapter: only ${partial} of ${+chapterInput.value} cards arrived before the sources stopped answering.`)] : []),
 			el('p', '', `${shown} cards · ${mins} min here. A good place to stop. Or keep going: chapter ${chapter + 1} is below.`),
 		);
 		chapter++;
 		return d;
 	}
 
-	// A to Z: each chapter's cards are gathered first (up to 8 requests in flight, never waiting on the slowest
-	// source), then shown sorted by title, A to Z, with a letter heading wherever the first letter changes.
-	// Titles starting with a number come after Z (under "0–9"), then other scripts and symbols (under "#").
+	// Three ways to order (the buttons at the top):
+	//  as drawn: each card appears the moment it's picked, in that order
+	//  A–Z: a chapter's cards are gathered first, then sorted by title, with a letter heading wherever the first
+	//       letter changes. Titles starting with a number come after Z (under "0–9"), then other scripts and
+	//       symbols (under "#"). "The" and "A" count like any other word.
+	//  shuffle: gathered the same way, then put in an order drawn from the seed shown above the feed
 	const sortKey = (c: Card) => (c.title ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase();
 	const letterOf = (k: string) => (/^[a-z]/.test(k) ? k[0].toUpperCase() : /^[0-9]/.test(k) ? '0–9' : '#');
-	const rank = (L: string) => (L === '0–9' ? 1 : L === '#' ? 2 : 0); // A–Z first, then titles starting with a number, then everything else
+	const rank = (L: string) => (L === '0–9' ? 1 : L === '#' ? 2 : 0);
 	const byTitle = (a: Card, b: Card) => {
 		const ka = sortKey(a), kb = sortKey(b);
 		return rank(letterOf(ka)) - rank(letterOf(kb)) || ka.localeCompare(kb, 'en', { sensitivity: 'base', numeric: true });
 	};
+	const cut = (t: string) => (t.length > 50 ? t.slice(0, 50) + '…' : t);
+	const seedNote = () => (SEED !== null ? ` · seed ${SEED}` : '');
 	let inFlight = 0;
 	const batch: [Card, string][] = [];
-	function flush() {
-		const cards = batch.splice(0).sort((x, y) => byTitle(x[0], y[0]));
-		let last = '';
-		for (const [card, why] of cards) {
-			const L = letterOf(sortKey(card));
-			if (L !== last) { stream.append(el('div', 'letter', L)); last = L; }
-			stream.append(render(card, `${why} · placed in A to Z order by its title`));
-			shown++;
+	const carry: [Card, string][] = []; // "more like this" cards waiting for the next chapter
+	function flush(partial = false) {
+		const want = +chapterInput.value;
+		const cards = [...batch.splice(0), ...carry.splice(0)];
+		const n = cards.length;
+		let pos: string[];
+		if (order === 'az') {
+			cards.sort((x, y) => byTitle(x[0], y[0]));
+			pos = cards.map(([c], i) => {
+				const prev = cards[i - 1]?.[0], next = cards[i + 1]?.[0];
+				return `placed A to Z by its title "${cut(c.title)}"${prev ? `, after "${cut(prev.title)}"` : ', first in the chapter'}${next ? `, before "${cut(next.title)}"` : ', last in the chapter'}`;
+			});
+		} else {
+			// shuffle with this chapter's own random numbers from the seed, so earlier chapters never shift later ones
+			const r = mulberry((SEED ?? 0) * 7919 + chapter);
+			for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; }
+			pos = cards.map(() => `placed by shuffling the chapter with seed ${SEED} (chapter ${chapter})`);
 		}
+		let last = '';
+		cards.forEach(([card, why], i) => {
+			const L = letterOf(sortKey(card));
+			if (order === 'az' && L !== last) { stream.append(el('div', 'letter', L)); last = L; }
+			stream.append(render(card, `chapter ${chapter}, card ${i + 1} of ${n} · ${pos[i]} · picked because: ${why}${card.batch ? ` · ${card.batch}` : ''}${seedNote()}`));
+			shown++;
+		});
 		document.getElementById('count')!.textContent = String(shown);
-		stream.append(chapterBreak());
+		stream.append(chapterBreak(partial && n < want ? n : 0));
 		remember();
 		if (nearBottom()) more();
 	}
-	function more(n = 8) {
+	let sinceBreak = 0;
+	function more(n = SEED !== null ? 1 : 8) {
 		const sentinel = document.getElementById('sentinel')!;
 		const want = +chapterInput.value;
-		sentinel.textContent = `gathering chapter ${chapter}: ${batch.length} of ${want} cards, then A to Z…`;
-		for (; inFlight < n && batch.length + inFlight < want; inFlight++) {
+		if (order !== 'drawn') sentinel.textContent = `gathering chapter ${chapter}: ${batch.length} of ${want} cards, then ${order === 'az' ? 'A to Z' : `shuffled with seed ${SEED}`}…`;
+		else sentinel.textContent = 'loading…';
+		for (; inFlight < n && (order === 'drawn' || batch.length + inFlight < want); inFlight++) {
 			nextCard().then((next) => {
 				inFlight--;
 				if (!next) {
 					// sources ran dry: show what we have rather than wait forever
-					if (!inFlight && batch.length) flush();
+					if (order !== 'drawn' && !inFlight && batch.length) flush(true);
 					else if (!shown && !batch.length && !inFlight) sentinel.textContent = 'every source is off or not answering. press tune.';
+					return;
+				}
+				if (order === 'drawn') {
+					sinceBreak++;
+					stream.append(render(next[0], `chapter ${chapter}, card ${sinceBreak} · placed as drawn: the ${sinceBreak}${['th', 'st', 'nd', 'rd'][sinceBreak % 10 < 4 && Math.floor(sinceBreak / 10) % 10 !== 1 ? sinceBreak % 10 : 0]} card picked for this chapter · picked because: ${next[1]}${next[0].batch ? ` · ${next[0].batch}` : ''}${seedNote()}`));
+					shown++;
+					document.getElementById('count')!.textContent = String(shown);
+					if (sinceBreak >= want) { stream.append(chapterBreak()); sinceBreak = 0; }
+					if (shown % 8 === 0) remember();
+					if (nearBottom()) more();
 					return;
 				}
 				if (!batch.some(([c]) => c.id === next[0].id)) batch.push(next);
@@ -1477,7 +1552,7 @@ const sources = [
 
 	// leftover cards from last visit make the first screen instant
 	const C_KEY = 'aishipped.feed.cache';
-	if (!isRaw()) for (const c of shuffle(load<Card[]>(C_KEY, []))) if (!seen.has(c.id)) SOURCES[c.src]?.queue.push(c);
+	if (!isRaw() && !fixedData) for (const c of shuffle(load<Card[]>(C_KEY, []))) if (!seen.has(c.id)) SOURCES[c.src]?.queue.push(c);
 	store(C_KEY, []);
 	const saveLeftovers = () => {
 		const left = Object.values(SOURCES).flatMap((x) => x.queue.filter((c) => !c.draw).slice(0, 4))
@@ -1490,8 +1565,41 @@ const sources = [
 
 	navigator.serviceWorker?.register('/sw.js').catch(() => {});
 	document.getElementById('tune')!.classList.toggle('raw', isRaw());
-	for (const id of Object.keys(SOURCES)) if (weights()[id] > 0 && enabled(id)) refill(id);
-	more(10);
+	if (SEED === null) for (const id of Object.keys(SOURCES)) if (weights()[id] > 0 && enabled(id)) refill(id);
+
+	// ---- order buttons, seed line, private mode, forget everything ----
+	const setURL = (p: Record<string, string | null>) => {
+		const u = new URL(location.href);
+		for (const [k, v] of Object.entries(p)) v === null ? u.searchParams.delete(k) : u.searchParams.set(k, v);
+		location.href = u.toString();
+	};
+	for (const b of document.querySelectorAll<HTMLButtonElement>('.order [data-order]')) {
+		b.classList.toggle('on', b.dataset.order === order);
+		b.addEventListener('click', () => { store(ORDER_KEY, b.dataset.order); setURL({ order: SEED !== null ? b.dataset.order! : null }); });
+	}
+	const shuffleBtn = document.getElementById('shuffleBtn')!;
+	shuffleBtn.classList.toggle('on', order === 'shuffle');
+	shuffleBtn.addEventListener('click', () => setURL({ seed: String(1 + Math.floor(Math.random() * 999_999_999)), order: 'shuffle' }));
+	if (SEED !== null) {
+		const line = document.getElementById('seedLine')!;
+		line.hidden = false;
+		line.innerHTML = `seed <b>${SEED}</b> · ${order === 'shuffle' ? 'shuffled' : order === 'az' ? 'A to Z' : 'as drawn'} · cards from this site's weekly copy only (build <span id="buildId">…</span>) · the same link gives the same cards in the same order, as long as the sliders and never-show list match · <button id="copySeed">copy link</button> <button id="leaveSeed">leave seeded mode</button>`;
+		fetch('/build.txt').then((r) => r.text()).then((t) => { document.getElementById('buildId')!.textContent = t.trim().slice(0, 7); }).catch(() => {});
+		document.getElementById('copySeed')!.addEventListener('click', (e) => { navigator.clipboard?.writeText(location.href); (e.target as HTMLButtonElement).textContent = 'copied'; });
+		document.getElementById('leaveSeed')!.addEventListener('click', () => setURL({ seed: null, order: null }));
+	}
+	const privBox = document.getElementById('private') as HTMLInputElement;
+	privBox.checked = privateMode;
+	privBox.addEventListener('change', () => { store(PRIV_KEY, privBox.checked); location.reload(); });
+	document.getElementById('forgetAll')!.addEventListener('click', async () => {
+		if (!confirm('Delete everything this site keeps in this browser?')) return;
+		for (const k of Object.keys(localStorage)) if (k.startsWith('aishipped.')) localStorage.removeItem(k);
+		try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+		try { for (const r of (await navigator.serviceWorker?.getRegistrations()) ?? []) await r.unregister(); } catch {}
+		removeEventListener('pagehide', saveLeftovers);
+		location.href = '/feed';
+	});
+	more(SEED !== null ? 1 : 10);
 </script>
 
 <style>
@@ -1508,6 +1616,15 @@ const sources = [
 	.stat { color: var(--dim); white-space: nowrap; }
 	@media (max-width: 480px) { .home { display: none; } }
 	.spacer { flex: 1; }
+	.order { display: flex; gap: 0; }
+	.order button { border-radius: 0; margin-left: -1px; padding: 5px 8px; }
+	.order button:first-child { border-radius: 4px 0 0 4px; }
+	.order button:last-child { border-radius: 0 4px 4px 0; }
+	.order button.on { color: var(--amber); border-color: var(--amber); position: relative; }
+	@media (max-width: 560px) { .stat { display: none; } .order button { padding: 5px 6px; } }
+	.seedline { color: var(--amber); font-size: 0.8rem; border: 1px dashed var(--amber); border-radius: 4px; padding: 8px 10px; }
+	.seedline button { font-size: 0.75rem; padding: 2px 6px; }
+	button.danger { border-color: var(--red); color: var(--red); }
 	button {
 		font: inherit; color: var(--text); background: var(--panel);
 		border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; cursor: pointer;
@@ -1536,7 +1653,9 @@ const sources = [
 	@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 	:global(.card.child) { margin-left: 20px; border-left: 2px solid var(--amber); }
 	:global(.card .why) { color: var(--dim); font-size: 0.72rem; margin: 0 0 10px; }
-	:global(.card .why)::before { content: '# '; }
+	:global(.card .why summary) { cursor: pointer; width: fit-content; }
+	:global(.card .why summary)::before { content: '# '; }
+	:global(.card .why p) { margin: 4px 0 0; padding-left: 10px; border-left: 2px solid var(--line); }
 	:global(.card figure) {
 		margin: 0 -16px 12px; background: #0006 center / cover; min-height: 120px;
 	}
@@ -1547,9 +1666,10 @@ const sources = [
 	:global(.card figure.loaded img) { opacity: 1; }
 	:global(.card figure.play) { cursor: pointer; position: relative; }
 	:global(.card figure.play)::after {
-		content: '▶'; position: absolute; inset: 0; display: grid; place-items: center;
-		font-size: 3rem; color: #fff; text-shadow: 0 2px 12px #000;
+		content: '▶ archive.org ↗'; position: absolute; inset: 0; display: grid; place-items: center;
+		font-size: 1.6rem; color: #fff; text-shadow: 0 2px 12px #000; pointer-events: none;
 	}
+	:global(.card .playlink) { position: absolute; inset: 0; z-index: 1; }
 	:global(.card figure.noimg) { aspect-ratio: 16 / 9; background: #111; }
 	:global(.card iframe) { display: block; width: 100%; aspect-ratio: 4 / 3; border: 0; }
 	:global(.card canvas) {

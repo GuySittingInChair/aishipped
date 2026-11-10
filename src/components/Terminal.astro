@@ -10,7 +10,8 @@
 
 	<div class="term">
 		<div class="bar">
-			<span id="status">checking for ollama…</span>
+			<span id="status">not connected</span>
+			<button id="connect" type="button">connect to ollama on this computer</button>
 			<select id="model" aria-label="model" hidden></select>
 		</div>
 		<div id="log" aria-live="polite"></div>
@@ -116,7 +117,8 @@ Be concise, direct and honest. If you are not sure of a fact, say so.`;
 		input.focus();
 	});
 
-	connect();
+	// only when asked: some browsers show a "this site wants to reach your local network" prompt for it
+	document.getElementById('connect')!.addEventListener('click', (e) => { (e.target as HTMLButtonElement).hidden = true; connect().finally(() => { (e.target as HTMLButtonElement).hidden = status.textContent === 'connected'; }); });
 </script>
 
 <style>

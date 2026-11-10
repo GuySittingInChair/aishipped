@@ -43,7 +43,7 @@ export default defineConfig({
 				`connect-src 'self' ${API.join(' ')}`,
 				"img-src 'self' https: data: blob: http://127.0.0.1:8790",
 				"media-src 'self' https: blob:",
-				'frame-src https://archive.org',
+				"frame-src 'none'", // films and records open on archive.org itself
 				"font-src 'self'",
 				"object-src 'none'",
 				"base-uri 'none'",
