@@ -1,0 +1,115 @@
+---
+import Base from '../layouts/Base.astro';
+import stories from '../data/fanfic.json';
+const tropes = [...new Set(stories.map((s) => s.trope))];
+---
+
+<Base title="Fanfic Machine" description="Tiny, unhinged romance excerpts in every trope: enemies to lovers, morally grey, only one bed, monster romance. Original, for the girls who are hurting.">
+	<main class="ff">
+		<p class="prompt"><a href="/">aishipped.lol</a> / fanfic</p>
+
+		<div id="gate">
+			<h1>the fanfic machine</h1>
+			<p class="dim">Silly romance for grown-ups: tall men, longing looks, fade to black. 18+.</p>
+			<button id="enter">I'm 18 or over</button>
+			<p class="dim small"><a href="/">take me back</a></p>
+		</div>
+
+		<div id="app" hidden>
+			<h1>the fanfic machine</h1>
+			<p class="dim">For the femchuds who are hurting. {stories.length} original excerpts, all fiction, all adults, no men were harmed (several were made very tall).</p>
+
+			<div class="chips" id="chips">
+				<button class="chip on" data-t="">all tropes</button>
+				{tropes.map((t) => <button class="chip" data-t={t}>{t}</button>)}
+			</div>
+
+			<article id="card">
+				<p class="trope" id="trope"></p>
+				<h2 id="title"></h2>
+				<p id="text"></p>
+			</article>
+
+			<div class="row">
+				<button id="next">another one ♥</button>
+				<button id="copy" class="ghost">copy link</button>
+			</div>
+			<p class="dim small" id="count"></p>
+		</div>
+	</main>
+</Base>
+
+<script>
+	import stories from '../data/fanfic.json';
+	const $ = (id: string) => document.getElementById(id)!;
+	const KEY = 'aishipped.fanfic.adult';
+	const ok = () => { try { return localStorage.getItem(KEY) === '1'; } catch { return false; } };
+	const open = () => { $('gate').hidden = true; $('app').hidden = false; };
+	$('enter').addEventListener('click', () => { try { localStorage.setItem(KEY, '1'); } catch {} open(); });
+	if (ok()) open();
+
+	let trope = '';
+	let cur = -1;
+	const seen = new Set<number>();
+	const pool = () => stories.map((_, i) => i).filter((i) => !trope || stories[i].trope === trope);
+
+	function show(i: number) {
+		cur = i; seen.add(i);
+		const s = stories[i];
+		$('trope').textContent = s.trope;
+		$('title').textContent = s.title;
+		$('text').textContent = s.text;
+		const p = pool();
+		$('count').textContent = `${p.filter((j) => seen.has(j)).length} of ${p.length} read`;
+		history.replaceState(null, '', `?n=${i}`);
+		const card = $('card'); card.classList.remove('in'); void card.offsetWidth; card.classList.add('in');
+	}
+
+	function next() {
+		const p = pool();
+		let fresh = p.filter((i) => !seen.has(i) && i !== cur);
+		if (!fresh.length) { p.forEach((i) => seen.delete(i)); fresh = p.filter((i) => i !== cur); }
+		if (!fresh.length) fresh = p;
+		show(fresh[Math.floor(Math.random() * fresh.length)]);
+	}
+
+	$('next').addEventListener('click', next);
+	$('chips').addEventListener('click', (e) => {
+		const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
+		if (!b) return;
+		trope = b.dataset.t || '';
+		document.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c === b));
+		next();
+	});
+	$('copy').addEventListener('click', async () => {
+		try { await navigator.clipboard.writeText(location.href); $('copy').textContent = 'copied'; }
+		catch { $('copy').textContent = location.href; }
+		setTimeout(() => ($('copy').textContent = 'copy link'), 1500);
+	});
+
+	const n = Number(new URLSearchParams(location.search).get('n'));
+	if (Number.isInteger(n) && stories[n] && new URLSearchParams(location.search).has('n')) show(n); else next();
+</script>
+
+<style>
+	.ff { max-width: 720px; margin: 0 auto; padding: 32px 16px 80px; font-family: var(--mono); --pink: #ff8fc7; }
+	h1 { color: var(--pink); margin: 8px 0; }
+	.dim { color: var(--dim); }
+	.small { font-size: 0.85rem; }
+	.prompt a, .small a { color: var(--dim); }
+	button { font: inherit; background: var(--panel); color: var(--pink); border: 1px solid var(--pink); padding: 12px 18px; margin: 12px 0 4px; cursor: pointer; border-radius: 4px; }
+	button:hover { background: #1c1418; }
+	.ghost { color: var(--dim); border-color: var(--line); }
+	.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+	.chip { margin: 0; padding: 5px 10px; font-size: 0.8rem; color: var(--dim); border-color: var(--line); border-radius: 99px; }
+	.chip.on { color: var(--bg); background: var(--pink); border-color: var(--pink); }
+	#card { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--pink); padding: 20px 22px; border-radius: 6px; min-height: 220px; }
+	#card.in { animation: fade 0.35s ease-out; }
+	@keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+	.trope { color: var(--amber); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 0; }
+	#card h2 { color: var(--pink); margin: 6px 0 12px; }
+	#card h2::before { content: ''; }
+	#text { font-family: Georgia, 'Times New Roman', serif; font-size: 1.08rem; line-height: 1.7; color: var(--text); margin: 0; }
+	.row { display: flex; gap: 10px; flex-wrap: wrap; }
+	@media (prefers-reduced-motion: reduce) { #card.in { animation: none; } }
+</style>
